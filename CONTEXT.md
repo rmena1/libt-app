@@ -16,6 +16,10 @@ _Avoid_: Note page, meeting page
 A root block representing one calendar day for a user. Daily blocks are the only root blocks; every other block belongs to exactly one daily block through its parent chain.
 _Avoid_: Daily page, daily document
 
+**Daily Block Creation**:
+Daily blocks are created lazily when a day is opened or when an operation needs to insert or move a block to that date. Creation is idempotent per user and date.
+_Avoid_: Precreated empty days
+
 **Block Date**:
 The date of a non-root block is derived from its ancestor daily block. Notes and todos do not own independent dates while they remain inside a daily tree.
 _Avoid_: Per-block note date
@@ -57,6 +61,10 @@ Domain Expert: "You are opening the todo block. The todos view only filtered it;
 Developer: "If I create a note directly from a folder, where does it live?"
 
 Domain Expert: "It still lives under today's daily block. The folder assignment only changes where it appears as a filtered result."
+
+Developer: "Do daily blocks exist before anything is written on that date?"
+
+Domain Expert: "No. A daily block is created when the user opens the day or when something needs to be inserted there."
 
 Developer: "If I tag a meeting summary with a folder, does it move?"
 
