@@ -21,6 +21,7 @@ Daily notes are the only root blocks. Every text note, todo, meeting transcripti
 - A recurring todo's next occurrence copies only the todo block itself, not descendants or external assignments.
 - Rescheduling a todo moves the todo block and its entire subtree directly under the target daily block.
 - A rescheduled todo is appended after the existing direct children of the target daily block.
+- Calendar event links belong to todo blocks and are updated when the todo is rescheduled or its due time changes.
 - A block can have multiple direct folder assignments.
 - Folder assignment applies only to the assigned block, not implicitly to descendants.
 - Parent folder views aggregate blocks assigned to descendant folders, but assignments remain direct.
@@ -90,6 +91,21 @@ Direct block-to-folder tags.
 
 Folder views resolve descendant folders at query time or through a read projection; they do not materialize ancestor tags.
 
+### `calendar_event_links`
+
+External calendar event identity for todo blocks.
+
+- `id`
+- `block_id`: FK to `blocks.id`; must reference a todo block by service/mutator rule.
+- `provider`
+- `provider_event_id`
+- `synced_title`
+- `synced_starts_at`
+- `synced_ends_at`
+- `last_synced_at`
+
+The canonical due date/time is derived from `daily_blocks.date` through `blocks.daily_block_id` plus `todo_blocks.due_time`. The synced fields record the last pushed external state for reconciliation, not the local source of truth.
+
 ## Open Questions
 
-- How calendar event links bind to todo blocks once due date is derived from the daily root.
+No open model questions remain in this draft.

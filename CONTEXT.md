@@ -48,6 +48,10 @@ _Avoid_: Duplicated due date
 A todo block with a recurrence rule. Completing a recurring todo keeps the current todo completed and creates a new todo block for the next occurrence under the future daily block. The new occurrence copies only the todo block's own content and todo metadata, not its descendants or external assignments.
 _Avoid_: Reopening the same todo, moving the same recurring block forward
 
+**Calendar Event Link**:
+A link between a todo block and an external calendar event. The todo block owns the link; rescheduling the todo or changing its due time updates the existing external event instead of creating a new one.
+_Avoid_: Calendar event as todo source of truth, date-only calendar link
+
 **Folder**:
 A hierarchical tag assigned to blocks for filtered navigation. Folders organize views over blocks; they do not own block content or move blocks out of their original tree.
 _Avoid_: Container, location
@@ -105,6 +109,10 @@ Domain Expert: "No. The completed todo stays where it happened, and a new todo b
 Developer: "Does the next recurring todo copy subtasks or notes from the completed one?"
 
 Domain Expert: "No. It copies only the todo itself, not its children, folder assignments, or calendar links."
+
+Developer: "If I move a todo with a calendar event to another date, what happens to the event?"
+
+Domain Expert: "The calendar link stays on the todo block, and the existing external event is updated to the todo's new date and due time."
 
 Developer: "If I tag a parent block, are all children tagged too?"
 
