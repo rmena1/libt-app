@@ -24,6 +24,10 @@ _Avoid_: Task page
 A hierarchical tag assigned to blocks for filtered navigation. Folders organize views over blocks; they do not own block content or move blocks out of their original tree.
 _Avoid_: Container, location
 
+**Folder Assignment**:
+A direct tag from one folder to one block. The assignment applies only to that block; folder views may show the block's descendant tree as context, but descendants are not implicitly tagged.
+_Avoid_: Recursive folder membership, inherited folder
+
 **Special View**:
 A derived view that shows blocks matching a filter, such as todos grouped by date/priority or blocks tagged with a folder. A special view is not a separate source of truth.
 _Avoid_: Section as owner, duplicated list
@@ -37,3 +41,7 @@ Domain Expert: "You are opening the todo block. The todos view only filtered it;
 Developer: "If I tag a meeting summary with a folder, does it move?"
 
 Domain Expert: "No. The folder is a tag. The folder view shows that block and can let me open its subtree, but the original daily tree remains the source of truth."
+
+Developer: "If I tag a parent block, are all children tagged too?"
+
+Domain Expert: "No. Only the parent has the folder assignment. The folder view can render the children under it for context."
