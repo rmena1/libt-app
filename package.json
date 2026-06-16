@@ -15,7 +15,7 @@
     "db:verify": "node scripts/db-bootstrap.mjs --verify",
     "db:studio": "drizzle-kit studio",
     "test": "npm run test:unit",
-    "test:unit": "node --test",
+    "test:unit": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "zero:deploy-permissions": "zero-deploy-permissions --schema-path ./schema.mts",
     "zero:start": "npm run db:verify && npx zero-cache",

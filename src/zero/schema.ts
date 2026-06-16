@@ -10,36 +10,47 @@ import {
   ANYONE_CAN_DO_ANYTHING,
 } from '@rocicorp/zero'
 
-const document = table('document')
-  .from('documents')
-  .columns({
-    id: string(),
-    userId: string().from('user_id'),
-    kind: string(),
-    title: string().optional(),
-    dailyDate: string().optional().from('daily_date'),
-    folderId: string().optional().from('folder_id'),
-    sourceBlockId: string().optional().from('source_block_id'),
-    createdAt: number().from('created_at'),
-    updatedAt: number().from('updated_at'),
-  })
-  .primaryKey('id')
-
 const block = table('block')
   .from('blocks')
   .columns({
     id: string(),
     userId: string().from('user_id'),
-    documentId: string().from('document_id'),
+    kind: string(),
     parentBlockId: string().optional().from('parent_block_id'),
+    dailyBlockId: string().from('daily_block_id'),
     position: string(),
-    depth: number(),
     content: string(),
     isCollapsed: boolean().from('is_collapsed'),
     createdAt: number().from('created_at'),
     updatedAt: number().from('updated_at'),
   })
   .primaryKey('id')
+
+const dailyBlock = table('dailyBlock')
+  .from('daily_blocks')
+  .columns({
+    blockId: string().from('block_id'),
+    userId: string().from('user_id'),
+    date: string(),
+    createdAt: number().from('created_at'),
+  })
+  .primaryKey('blockId')
+
+const todoBlock = table('todoBlock')
+  .from('todo_blocks')
+  .columns({
+    blockId: string().from('block_id'),
+    userId: string().from('user_id'),
+    status: string(),
+    dueTime: string().optional().from('due_time'),
+    priority: string().optional(),
+    recurrence: string().optional(),
+    recurrenceParentId: string().optional().from('recurrence_parent_id'),
+    completedAt: number().optional().from('completed_at'),
+    createdAt: number().from('created_at'),
+    updatedAt: number().from('updated_at'),
+  })
+  .primaryKey('blockId')
 
 const folder = table('folder')
   .from('folders')
@@ -48,24 +59,9 @@ const folder = table('folder')
     userId: string().from('user_id'),
     name: string(),
     slug: string(),
-    parentId: string().optional().from('parent_id'),
+    path: string(),
+    parentFolderId: string().optional().from('parent_folder_id'),
     position: string(),
-    createdAt: number().from('created_at'),
-    updatedAt: number().from('updated_at'),
-  })
-  .primaryKey('id')
-
-const task = table('task')
-  .from('tasks')
-  .columns({
-    id: string(),
-    userId: string().from('user_id'),
-    sourceBlockId: string().from('source_block_id'),
-    status: string(),
-    dueDate: string().optional().from('due_date'),
-    priority: string().optional(),
-    recurrence: string().optional(),
-    completedAt: number().optional().from('completed_at'),
     createdAt: number().from('created_at'),
     updatedAt: number().from('updated_at'),
   })
@@ -81,6 +77,23 @@ const blockFolderAssignment = table('blockFolderAssignment')
   })
   .primaryKey('blockId', 'folderId')
 
+const calendarEventLink = table('calendarEventLink')
+  .from('calendar_event_links')
+  .columns({
+    id: string(),
+    userId: string().from('user_id'),
+    blockId: string().from('block_id'),
+    provider: string(),
+    providerEventId: string().from('provider_event_id'),
+    syncedTitle: string().optional().from('synced_title'),
+    syncedStartsAt: string().optional().from('synced_starts_at'),
+    syncedEndsAt: string().optional().from('synced_ends_at'),
+    lastSyncedAt: number().optional().from('last_synced_at'),
+    createdAt: number().from('created_at'),
+    updatedAt: number().from('updated_at'),
+  })
+  .primaryKey('id')
+
 const dailyReviewState = table('dailyReviewState')
   .from('daily_review_states')
   .columns({
@@ -94,62 +107,75 @@ const dailyReviewState = table('dailyReviewState')
   })
   .primaryKey('id')
 
-const documentRelationships = relationships(document, ({ many, one }) => ({
-  blocks: many({
-    sourceField: ['id'],
-    destSchema: block,
-    destField: ['documentId'],
-  }),
-  folder: one({
-    sourceField: ['folderId'],
-    destSchema: folder,
-    destField: ['id'],
-  }),
-}))
-
 const blockRelationships = relationships(block, ({ one, many }) => ({
-  document: one({
-    sourceField: ['documentId'],
-    destSchema: document,
-    destField: ['id'],
-  }),
   parentBlock: one({
     sourceField: ['parentBlockId'],
     destSchema: block,
     destField: ['id'],
+  }),
+  dailyRoot: one({
+    sourceField: ['dailyBlockId'],
+    destSchema: block,
+    destField: ['id'],
+  }),
+  dailyMetadata: one({
+    sourceField: ['id'],
+    destSchema: dailyBlock,
+    destField: ['blockId'],
+  }),
+  todoMetadata: one({
+    sourceField: ['id'],
+    destSchema: todoBlock,
+    destField: ['blockId'],
   }),
   childBlocks: many({
     sourceField: ['id'],
     destSchema: block,
     destField: ['parentBlockId'],
   }),
-  task: one({
-    sourceField: ['id'],
-    destSchema: task,
-    destField: ['sourceBlockId'],
-  }),
   folderAssignments: many({
     sourceField: ['id'],
     destSchema: blockFolderAssignment,
+    destField: ['blockId'],
+  }),
+  calendarLinks: many({
+    sourceField: ['id'],
+    destSchema: calendarEventLink,
+    destField: ['blockId'],
+  }),
+}))
+
+const dailyBlockRelationships = relationships(dailyBlock, ({ one }) => ({
+  block: one({
+    sourceField: ['blockId'],
+    destSchema: block,
+    destField: ['id'],
+  }),
+}))
+
+const todoBlockRelationships = relationships(todoBlock, ({ one }) => ({
+  block: one({
+    sourceField: ['blockId'],
+    destSchema: block,
+    destField: ['id'],
+  }),
+  recurrenceParent: one({
+    sourceField: ['recurrenceParentId'],
+    destSchema: todoBlock,
     destField: ['blockId'],
   }),
 }))
 
 const folderRelationships = relationships(folder, ({ one, many }) => ({
   parentFolder: one({
-    sourceField: ['parentId'],
+    sourceField: ['parentFolderId'],
     destSchema: folder,
     destField: ['id'],
   }),
   childFolders: many({
     sourceField: ['id'],
     destSchema: folder,
-    destField: ['parentId'],
-  }),
-  documents: many({
-    sourceField: ['id'],
-    destSchema: document,
-    destField: ['folderId'],
+    destField: ['parentFolderId'],
   }),
   assignedBlocks: many({
     sourceField: ['id'],
@@ -158,17 +184,37 @@ const folderRelationships = relationships(folder, ({ one, many }) => ({
   }),
 }))
 
-const taskRelationships = relationships(task, ({ one }) => ({
-  sourceBlock: one({
-    sourceField: ['sourceBlockId'],
+const blockFolderAssignmentRelationships = relationships(blockFolderAssignment, ({ one }) => ({
+  block: one({
+    sourceField: ['blockId'],
+    destSchema: block,
+    destField: ['id'],
+  }),
+  folder: one({
+    sourceField: ['folderId'],
+    destSchema: folder,
+    destField: ['id'],
+  }),
+}))
+
+const calendarEventLinkRelationships = relationships(calendarEventLink, ({ one }) => ({
+  block: one({
+    sourceField: ['blockId'],
     destSchema: block,
     destField: ['id'],
   }),
 }))
 
 export const schema = createSchema({
-  tables: [document, block, folder, task, blockFolderAssignment, dailyReviewState],
-  relationships: [documentRelationships, blockRelationships, folderRelationships, taskRelationships],
+  tables: [block, dailyBlock, todoBlock, folder, blockFolderAssignment, calendarEventLink, dailyReviewState],
+  relationships: [
+    blockRelationships,
+    dailyBlockRelationships,
+    todoBlockRelationships,
+    folderRelationships,
+    blockFolderAssignmentRelationships,
+    calendarEventLinkRelationships,
+  ],
   enableLegacyQueries: true,
   enableLegacyMutators: true,
 })
@@ -178,11 +224,12 @@ export const zql = createBuilder(schema)
 export type Schema = typeof schema
 
 export const permissions = definePermissions<unknown, Schema>(schema, () => ({
-  document: ANYONE_CAN_DO_ANYTHING,
   block: ANYONE_CAN_DO_ANYTHING,
+  dailyBlock: ANYONE_CAN_DO_ANYTHING,
+  todoBlock: ANYONE_CAN_DO_ANYTHING,
   folder: ANYONE_CAN_DO_ANYTHING,
-  task: ANYONE_CAN_DO_ANYTHING,
   blockFolderAssignment: ANYONE_CAN_DO_ANYTHING,
+  calendarEventLink: ANYONE_CAN_DO_ANYTHING,
   dailyReviewState: ANYONE_CAN_DO_ANYTHING,
 }))
 
@@ -191,4 +238,3 @@ declare module '@rocicorp/zero' {
     schema: Schema
   }
 }
-
