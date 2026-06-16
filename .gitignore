@@ -1,0 +1,15 @@
+.env*
+!.env.example
+
+.next/
+out/
+build/
+node_modules/
+coverage/
+screenshots/
+playwright-report/
+test-results/
+
+*.log
+.DS_Store
+
