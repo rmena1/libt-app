@@ -13,12 +13,20 @@ A basic block whose content is ordinary note text. Meeting and video transcripti
 _Avoid_: Note page, meeting page
 
 **Daily Block**:
-A root block representing one calendar day for a user. It owns the daily note tree for that date.
+A root block representing one calendar day for a user. Daily blocks are the only root blocks; every other block belongs to exactly one daily block through its parent chain.
 _Avoid_: Daily page, daily document
+
+**Block Date**:
+The date of a non-root block is derived from its ancestor daily block. Notes and todos do not own independent dates while they remain inside a daily tree.
+_Avoid_: Per-block note date
 
 **Todo Block**:
 A block that represents a todo item in the UI. Todo state such as status, due date, priority, recurrence, and completion timestamp is metadata attached 1:1 to the block, not nullable fields on every block.
 _Avoid_: Task page
+
+**Todo Rescheduling**:
+Changing a todo's date moves the todo block under the daily block for the selected date. If the todo was inside another note subtree, it leaves that subtree and stops appearing there.
+_Avoid_: Projected due date without movement
 
 **Folder**:
 A hierarchical tag assigned to blocks for filtered navigation. Folders organize views over blocks; they do not own block content or move blocks out of their original tree.
@@ -42,9 +50,17 @@ Developer: "When I open a todo from the todos view, what am I opening?"
 
 Domain Expert: "You are opening the todo block. The todos view only filtered it; the block still lives in its original tree."
 
+Developer: "If I create a note directly from a folder, where does it live?"
+
+Domain Expert: "It still lives under today's daily block. The folder assignment only changes where it appears as a filtered result."
+
 Developer: "If I tag a meeting summary with a folder, does it move?"
 
 Domain Expert: "No. The folder is a tag. The folder view shows that block and can let me open its subtree, but the original daily tree remains the source of truth."
+
+Developer: "If I reschedule a todo that was inside meeting notes, does it remain in the meeting?"
+
+Domain Expert: "No. Rescheduling moves the todo to the target daily block, so it is no longer part of the meeting subtree."
 
 Developer: "If I tag a parent block, are all children tagged too?"
 
