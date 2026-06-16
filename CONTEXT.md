@@ -25,8 +25,8 @@ A block that represents a todo item in the UI. Todo state such as status, due ti
 _Avoid_: Task page
 
 **Todo Rescheduling**:
-Changing a todo's date moves the todo block and its entire descendant tree under the daily block for the selected date. If the todo was inside another note subtree, it leaves that subtree and stops appearing there.
-_Avoid_: Projected due date without movement
+Changing a todo's date moves the todo block and its entire descendant tree directly under the daily block for the selected date. If the todo was inside another note subtree, it leaves that subtree and stops appearing there.
+_Avoid_: Projected due date without movement, implicit todos section
 
 **Todo Due Time**:
 An optional local time-of-day attached to a todo block. The todo's due date is still derived from its ancestor daily block; together, the daily block date and todo due time define when the todo is due.
@@ -65,6 +65,10 @@ Domain Expert: "No. The folder is a tag. The folder view shows that block and ca
 Developer: "If I reschedule a todo that was inside meeting notes, does it remain in the meeting?"
 
 Domain Expert: "No. Rescheduling moves the todo and all of its children to the target daily block, so it is no longer part of the meeting subtree."
+
+Developer: "Does rescheduling create or use a todos section under the target day?"
+
+Domain Expert: "No. The todo is inserted directly under the target daily block. A UI view may group todos visually, but that grouping is not written into the block tree."
 
 Developer: "Where is the due date stored for a todo with a due time?"
 
