@@ -18,6 +18,7 @@ Daily notes are the only root blocks. Every text note, todo, meeting transcripti
 - A todo may have an optional due time.
 - Rescheduling a todo moves the todo block and its entire subtree directly under the target daily block.
 - A rescheduled todo is appended after the existing direct children of the target daily block.
+- A block can have multiple direct folder assignments.
 - Folder assignment applies only to the assigned block, not implicitly to descendants.
 - Parent folder views aggregate blocks assigned to descendant folders, but assignments remain direct.
 
@@ -84,7 +85,6 @@ Folder views resolve descendant folders at query time or through a read projecti
 
 ## Open Questions
 
-- Whether a block can have multiple folder assignments or exactly one.
 - How to represent ancestor daily date efficiently for special views: recursive query, closure table, materialized `daily_block_id`, or maintained projection.
 - Whether todo recurrence creates new todo blocks or moves/reopens the same block.
 - How calendar event links bind to todo blocks once due date is derived from the daily root.

@@ -45,8 +45,8 @@ A hierarchical tag assigned to blocks for filtered navigation. Folders organize 
 _Avoid_: Container, location
 
 **Folder Assignment**:
-A direct tag from one folder to one block. The assignment applies only to that block; folder views may show the block's descendant tree as context, but descendants are not implicitly tagged.
-_Avoid_: Recursive folder membership, inherited folder
+A direct tag from one folder to one block. A block may have multiple folder assignments. Each assignment applies only to that block; folder views may show the block's descendant tree as context, but descendants are not implicitly tagged.
+_Avoid_: Recursive folder membership, inherited folder, primary folder
 
 **Folder View**:
 A special view for one folder that shows blocks assigned directly to that folder and blocks assigned to descendant folders. Descendant-folder results are aggregated by the view filter; the underlying assignments remain direct tags to their specific folders.
@@ -89,6 +89,10 @@ Domain Expert: "The date comes from the daily block that contains the todo. The 
 Developer: "If I tag a parent block, are all children tagged too?"
 
 Domain Expert: "No. Only the parent has the folder assignment. The folder view can render the children under it for context."
+
+Developer: "Can a block belong to more than one folder?"
+
+Domain Expert: "Yes. Folders are tags, so a block can have multiple direct folder assignments."
 
 Developer: "When I open a parent folder, should I see blocks from subfolders?"
 
