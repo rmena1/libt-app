@@ -17,6 +17,7 @@ Daily notes are the only root blocks. Every text note, todo, meeting transcripti
 - A standalone note created from a folder still lives under today's daily block; folder assignment is only a tag.
 - A todo's due date is derived from the ancestor daily block.
 - A todo may have an optional due time.
+- Completing a recurring todo creates a new future todo block instead of moving or reopening the completed one.
 - Rescheduling a todo moves the todo block and its entire subtree directly under the target daily block.
 - A rescheduled todo is appended after the existing direct children of the target daily block.
 - A block can have multiple direct folder assignments.
@@ -62,6 +63,7 @@ Metadata for todo blocks.
 - `due_time`: optional local `HH:mm`
 - `priority`: `low | medium | high`
 - `recurrence`: `weekly | monthly | yearly`
+- `recurrence_parent_id`: optional link to the original recurring series/source todo.
 - `completed_at`
 
 No `due_date` here. The date is derived from the daily root.
@@ -89,5 +91,5 @@ Folder views resolve descendant folders at query time or through a read projecti
 
 ## Open Questions
 
-- Whether todo recurrence creates new todo blocks or moves/reopens the same block.
+- Whether a recurring todo copies only the todo text or copies the whole subtree into the next occurrence.
 - How calendar event links bind to todo blocks once due date is derived from the daily root.

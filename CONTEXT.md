@@ -44,6 +44,10 @@ _Avoid_: Projected due date without movement, implicit todos section
 An optional local time-of-day attached to a todo block. The todo's due date is still derived from its ancestor daily block; together, the daily block date and todo due time define when the todo is due.
 _Avoid_: Duplicated due date
 
+**Recurring Todo**:
+A todo block with a recurrence rule. Completing a recurring todo keeps the current todo completed and creates a new todo block for the next occurrence under the future daily block.
+_Avoid_: Reopening the same todo, moving the same recurring block forward
+
 **Folder**:
 A hierarchical tag assigned to blocks for filtered navigation. Folders organize views over blocks; they do not own block content or move blocks out of their original tree.
 _Avoid_: Container, location
@@ -93,6 +97,10 @@ Domain Expert: "No. The todo is inserted directly under the target daily block, 
 Developer: "Where is the due date stored for a todo with a due time?"
 
 Domain Expert: "The date comes from the daily block that contains the todo. The todo only stores its optional due time."
+
+Developer: "When I complete a recurring todo, does the same block move to the next date?"
+
+Domain Expert: "No. The completed todo stays where it happened, and a new todo block is created for the next occurrence."
 
 Developer: "If I tag a parent block, are all children tagged too?"
 
