@@ -1,95 +1,90 @@
 # Initial Data Model Draft
 
-This is a draft for the grill session, not an accepted design.
+This is the current draft from the grill session. It supersedes the earlier `Document`/`Block` split.
 
-## Core Recommendation
+## Core Direction
 
-Split the current `pages` concept into separate identities:
+Everything user-authored is a `Block`.
 
-- **Document**: an addressable writing surface such as a daily note, standalone note, meeting note, or video note.
-- **Block**: one editable line inside a document. Blocks form the outline tree.
-- **Task**: metadata attached to a source block when that block represents a todo.
-- **Folder**: navigation and classification container.
-- **Recording**: meeting/video capture process and durable transcript/summary source.
-- **CalendarEventLink**: external calendar event linkage for a task or block.
-- **AgentConversation / AgentMessage**: persisted agent conversation stream.
+Daily notes are the only root blocks. Every text note, todo, meeting transcription, and generated summary belongs to exactly one daily tree through its parent chain. Opening any block renders that block and its descendant tree.
+
+## Confirmed Invariants
+
+- `daily` blocks are the only root blocks.
+- Daily blocks are created lazily through an idempotent get-or-create operation per user and date.
+- Non-root blocks derive their date from the ancestor daily block.
+- A standalone note created from a folder still lives under today's daily block; folder assignment is only a tag.
+- A todo's due date is derived from the ancestor daily block.
+- A todo may have an optional due time.
+- Rescheduling a todo moves the todo block and its entire subtree directly under the target daily block.
+- A rescheduled todo is appended after the existing direct children of the target daily block.
+- Folder assignment applies only to the assigned block, not implicitly to descendants.
+- Parent folder views aggregate blocks assigned to descendant folders, but assignments remain direct.
 
 ## Proposed Tables
 
-### `documents`
-
-Owns addressable surfaces.
-
-- `kind`: `daily | note | meeting | video`
-- `daily_date`: populated only for daily documents.
-- `folder_id`: optional classification for note-like documents.
-- `source_block_id`: optional pointer to the block that opened/created this document.
-
-Invariant: one `daily` document per `(user_id, daily_date)`.
-
 ### `blocks`
 
-Owns editable lines and outline structure.
+Canonical tree and visible content.
 
-- `document_id`: the document where the block lives.
-- `parent_block_id`: relational tree parent.
-- `position`: stable sortable ordering key.
-- `depth`: denormalized render helper, not the source of tree ownership.
-- `content`: plain text/markdown-ish line content.
-- `is_collapsed`: persisted UI state for the block.
+- `id`
+- `user_id`
+- `kind`: `daily | text | todo`
+- `parent_block_id`: nullable only for daily blocks.
+- `position`: stable sortable sibling order.
+- `content`
+- `is_collapsed`
+- timestamps
 
-Invariant: tree ownership is `parent_block_id`; indentation is derived or denormalized from the tree, never the canonical parent.
+Implementation rule: `text` blocks need no subtype row unless future metadata appears.
 
-### `tasks`
+### `daily_blocks`
 
-Owns todo semantics.
+Metadata for daily root blocks.
 
-- `source_block_id`: 1:1 link to the block that displays the task text.
-- `status`: `pending | completed | canceled`.
-- `due_date`: date used for task views and daily projections.
-- `priority`: `low | medium | high`.
-- `recurrence`: `weekly | monthly | yearly`.
-- `completed_at`: completion timestamp.
+- `block_id`: primary key and FK to `blocks.id`
+- `user_id`
+- `date`
 
-Invariant: a task can only exist if its source block exists.
+Invariant: unique `(user_id, date)`.
+
+### `todo_blocks`
+
+Metadata for todo blocks.
+
+- `block_id`: primary key and FK to `blocks.id`
+- `status`: `pending | completed | canceled`
+- `due_time`: optional local `HH:mm`
+- `priority`: `low | medium | high`
+- `recurrence`: `weekly | monthly | yearly`
+- `completed_at`
+
+No `due_date` here. The date is derived from the daily root.
+
+### `folders`
+
+Hierarchical tags.
+
+- `id`
+- `user_id`
+- `name`
+- `slug`
+- `parent_folder_id`
+- `position`
 
 ### `block_folder_assignments`
 
-Classifies blocks into folders without moving them out of their original daily document.
+Direct block-to-folder tags.
 
-Open question: whether the product should allow multiple folders per block or enforce one primary folder to match the current UI.
+- `block_id`
+- `folder_id`
+- `user_id`
 
-### `recordings`
+Folder views resolve descendant folders at query time or through a read projection; they do not materialize ancestor tags.
 
-Owns transcription lifecycle and generated artifacts.
+## Open Questions
 
-- `mode`: `meeting | video`.
-- `status`: upload/transcription/summary state.
-- `document_id` and `anchor_block_id`: where generated content is displayed.
-- `transcript` and `summary`: durable source data, not only generated blocks.
-
-Invariant: generated blocks are projections of a recording artifact; the transcript is not recoverable only from rendered note text.
-
-### `calendar_event_links`
-
-Owns provider event identity.
-
-- links to a `task_id` or `block_id`.
-- stores provider, external event id, title, start/end, all-day.
-
-Invariant: Google Calendar metadata does not live directly on the text block.
-
-### `agent_conversations` and `agent_messages`
-
-Stores messages as rows, not one JSON array.
-
-Invariant: tool calls and replies should be auditable and queryable by conversation.
-
-## First Grill Decision
-
-The highest-risk decision is whether a top-level daily line should remain just a `block` with children, or whether opening that line as a page should create a separate `document` linked from the block.
-
-Recommendation: start with a block-first model. A block is addressable and can be opened in a focused view that renders its subtree. Create a separate `document` only for surfaces that are naturally independent roots: daily notes, standalone notes, meetings, and videos.
-
-Reason: this keeps "every line is a page" without duplicating hierarchy or moving content between daily and folder surfaces.
-
+- Whether a block can have multiple folder assignments or exactly one.
+- How to represent ancestor daily date efficiently for special views: recursive query, closure table, materialized `daily_block_id`, or maintained projection.
+- Whether todo recurrence creates new todo blocks or moves/reopens the same block.
+- How calendar event links bind to todo blocks once due date is derived from the daily root.

@@ -8,6 +8,10 @@ libt is a personal knowledge app where every user-authored item is a block. The 
 The canonical unit of user-authored content. A block may contain child blocks, and opening any block shows that block and its descendant tree.
 _Avoid_: Page, document, line as a separate domain concept
 
+**Block Kind**:
+The visible role of a block in the product. The initial kinds are daily, text, and todo.
+_Avoid_: Separate page types
+
 **Text Block**:
 A basic block whose content is ordinary note text. Meeting and video transcriptions are stored as text blocks unless a future feature needs a separate recording artifact.
 _Avoid_: Note page, meeting page
