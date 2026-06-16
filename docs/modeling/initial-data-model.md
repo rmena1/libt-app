@@ -18,6 +18,7 @@ Daily notes are the only root blocks. Every text note, todo, meeting transcripti
 - A todo's due date is derived from the ancestor daily block.
 - A todo may have an optional due time.
 - Completing a recurring todo creates a new future todo block instead of moving or reopening the completed one.
+- A recurring todo's next occurrence copies only the todo block itself, not descendants or external assignments.
 - Rescheduling a todo moves the todo block and its entire subtree directly under the target daily block.
 - A rescheduled todo is appended after the existing direct children of the target daily block.
 - A block can have multiple direct folder assignments.
@@ -91,5 +92,4 @@ Folder views resolve descendant folders at query time or through a read projecti
 
 ## Open Questions
 
-- Whether a recurring todo copies only the todo text or copies the whole subtree into the next occurrence.
 - How calendar event links bind to todo blocks once due date is derived from the daily root.

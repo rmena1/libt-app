@@ -45,7 +45,7 @@ An optional local time-of-day attached to a todo block. The todo's due date is s
 _Avoid_: Duplicated due date
 
 **Recurring Todo**:
-A todo block with a recurrence rule. Completing a recurring todo keeps the current todo completed and creates a new todo block for the next occurrence under the future daily block.
+A todo block with a recurrence rule. Completing a recurring todo keeps the current todo completed and creates a new todo block for the next occurrence under the future daily block. The new occurrence copies only the todo block's own content and todo metadata, not its descendants or external assignments.
 _Avoid_: Reopening the same todo, moving the same recurring block forward
 
 **Folder**:
@@ -101,6 +101,10 @@ Domain Expert: "The date comes from the daily block that contains the todo. The 
 Developer: "When I complete a recurring todo, does the same block move to the next date?"
 
 Domain Expert: "No. The completed todo stays where it happened, and a new todo block is created for the next occurrence."
+
+Developer: "Does the next recurring todo copy subtasks or notes from the completed one?"
+
+Domain Expert: "No. It copies only the todo itself, not its children, folder assignments, or calendar links."
 
 Developer: "If I tag a parent block, are all children tagged too?"
 
