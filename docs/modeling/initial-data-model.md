@@ -13,6 +13,7 @@ Daily notes are the only root blocks. Every text note, todo, meeting transcripti
 - `daily` blocks are the only root blocks.
 - Daily blocks are created lazily through an idempotent get-or-create operation per user and date.
 - Non-root blocks derive their date from the ancestor daily block.
+- Every block stores maintained `daily_block_id` membership for efficient special views and sync.
 - A standalone note created from a folder still lives under today's daily block; folder assignment is only a tag.
 - A todo's due date is derived from the ancestor daily block.
 - A todo may have an optional due time.
@@ -32,12 +33,15 @@ Canonical tree and visible content.
 - `user_id`
 - `kind`: `daily | text | todo`
 - `parent_block_id`: nullable only for daily blocks.
+- `daily_block_id`: points to the ancestor daily block; for daily blocks it points to itself.
 - `position`: stable sortable sibling order.
 - `content`
 - `is_collapsed`
 - timestamps
 
 Implementation rule: `text` blocks need no subtype row unless future metadata appears.
+
+Implementation rule: when a subtree moves to another daily block, `daily_block_id` is updated for every block in that subtree.
 
 ### `daily_blocks`
 
@@ -85,6 +89,5 @@ Folder views resolve descendant folders at query time or through a read projecti
 
 ## Open Questions
 
-- How to represent ancestor daily date efficiently for special views: recursive query, closure table, materialized `daily_block_id`, or maintained projection.
 - Whether todo recurrence creates new todo blocks or moves/reopens the same block.
 - How calendar event links bind to todo blocks once due date is derived from the daily root.

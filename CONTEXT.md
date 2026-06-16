@@ -24,6 +24,10 @@ _Avoid_: Daily page, daily document
 Daily blocks are created lazily when a day is opened or when an operation needs to insert or move a block to that date. Creation is idempotent per user and date.
 _Avoid_: Precreated empty days
 
+**Daily Block Membership**:
+A maintained structural reference from every block to its ancestor daily block. It exists to make special views and sync queries efficient; the visible date still comes from the daily block metadata.
+_Avoid_: Independent block date, recursive date lookup as the primary query contract
+
 **Block Date**:
 The date of a non-root block is derived from its ancestor daily block. Notes and todos do not own independent dates while they remain inside a daily tree.
 _Avoid_: Per-block note date
@@ -69,6 +73,10 @@ Domain Expert: "It still lives under today's daily block. The folder assignment 
 Developer: "Do daily blocks exist before anything is written on that date?"
 
 Domain Expert: "No. A daily block is created when the user opens the day or when something needs to be inserted there."
+
+Developer: "Why does every block store daily block membership if dates are derived?"
+
+Domain Expert: "It is a maintained projection for efficient views. The canonical date still belongs to the daily block."
 
 Developer: "If I tag a meeting summary with a folder, does it move?"
 
