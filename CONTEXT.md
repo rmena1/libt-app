@@ -28,6 +28,10 @@ _Avoid_: Container, location
 A direct tag from one folder to one block. The assignment applies only to that block; folder views may show the block's descendant tree as context, but descendants are not implicitly tagged.
 _Avoid_: Recursive folder membership, inherited folder
 
+**Folder View**:
+A special view for one folder that shows blocks assigned directly to that folder and blocks assigned to descendant folders. Descendant-folder results are aggregated by the view filter; the underlying assignments remain direct tags to their specific folders.
+_Avoid_: Ancestor tag materialization
+
 **Special View**:
 A derived view that shows blocks matching a filter, such as todos grouped by date/priority or blocks tagged with a folder. A special view is not a separate source of truth.
 _Avoid_: Section as owner, duplicated list
@@ -45,3 +49,7 @@ Domain Expert: "No. The folder is a tag. The folder view shows that block and ca
 Developer: "If I tag a parent block, are all children tagged too?"
 
 Domain Expert: "No. Only the parent has the folder assignment. The folder view can render the children under it for context."
+
+Developer: "When I open a parent folder, should I see blocks from subfolders?"
+
+Domain Expert: "Yes. The parent folder view aggregates descendant folders, but the blocks are still tagged only with the specific folder assigned to them."
