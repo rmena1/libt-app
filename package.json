@@ -11,15 +11,18 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
+    "db:setup": "node scripts/db-setup.mjs",
+    "db:seed": "node scripts/db-seed.mjs",
+    "db:reset": "node scripts/db-reset.mjs",
     "db:bootstrap": "node scripts/db-bootstrap.mjs",
-    "db:verify": "node scripts/db-bootstrap.mjs --verify",
+    "db:verify": "node scripts/db-verify.mjs",
     "db:studio": "drizzle-kit studio",
     "test": "npm run test:unit",
     "test:unit": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "zero:deploy-permissions": "zero-deploy-permissions --schema-path ./schema.mts",
     "zero:start": "npm run db:verify && npx zero-cache",
-    "zero:dev": "ZERO_UPSTREAM_DB=postgresql://postgres:postgres@localhost:5432/libt_app ZERO_QUERY_URL=http://localhost:3000/api/zero/query ZERO_MUTATE_URL=http://localhost:3000/api/zero/mutate ZERO_QUERY_FORWARD_COOKIES=true ZERO_MUTATE_FORWARD_COOKIES=true npx zero-cache-dev"
+    "zero:dev": "ZERO_UPSTREAM_DB=postgresql://postgres:postgres@localhost:55432/libt_app ZERO_QUERY_URL=http://localhost:3000/api/zero/query ZERO_MUTATE_URL=http://localhost:3000/api/zero/mutate ZERO_QUERY_FORWARD_COOKIES=true ZERO_MUTATE_FORWARD_COOKIES=true npx zero-cache-dev"
   },
   "dependencies": {
     "@rocicorp/undo": "0.2.1",

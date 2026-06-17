@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { db, users } from '@/lib/db'
-import { createSession, loginSchema, verifyPassword } from '@/lib/auth'
+import { loginSchema, loginUser } from '@/lib/auth'
 import { checkRateLimit, clearRateLimit, recordFailedAttempt } from '@/lib/auth/rate-limit'
 
 export async function POST(request: Request) {
   const parsed = loginSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid login payload' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid login payload', code: 'invalid_login_payload' }, { status: 400 })
   }
 
   const rateLimitKey = `login:${parsed.data.email}`
@@ -16,25 +14,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Too many login attempts', retryAfterMs: rateLimit.retryAfterMs }, { status: 429 })
   }
 
-  const result = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      passwordHash: users.passwordHash,
-    })
-    .from(users)
-    .where(eq(users.email, parsed.data.email))
-    .limit(1)
+  const result = await loginUser(parsed.data)
 
-  const user = result[0]
-  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+  if (result.status === 'invalid_credentials') {
     recordFailedAttempt(rateLimitKey)
-    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
+    return NextResponse.json({ error: 'Invalid email or password', code: result.code }, { status: 401 })
+  }
+
+  if (result.status === 'account_pending_admission') {
+    clearRateLimit(rateLimitKey)
+    return NextResponse.json({ error: 'Account pending admission', code: result.code }, { status: 403 })
   }
 
   clearRateLimit(rateLimitKey)
-  await createSession(user.id)
 
-  return NextResponse.json({ user: { id: user.id, email: user.email } })
+  return NextResponse.json({ user: result.user })
 }
-

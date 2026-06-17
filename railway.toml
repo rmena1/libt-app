@@ -1,0 +1,14 @@
+[build]
+builder = "nixpacks"
+installCommand = "npm ci"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "npm run db:bootstrap && npm run start"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+
+[service]
+internalPort = 3000

@@ -7,7 +7,7 @@ import {
   createBuilder,
   relationships,
   definePermissions,
-  ANYONE_CAN_DO_ANYTHING,
+  NOBODY_CAN,
 } from '@rocicorp/zero'
 
 const block = table('block')
@@ -223,14 +223,62 @@ export const zql = createBuilder(schema)
 
 export type Schema = typeof schema
 
-export const permissions = definePermissions<unknown, Schema>(schema, () => ({
-  block: ANYONE_CAN_DO_ANYTHING,
-  dailyBlock: ANYONE_CAN_DO_ANYTHING,
-  todoBlock: ANYONE_CAN_DO_ANYTHING,
-  folder: ANYONE_CAN_DO_ANYTHING,
-  blockFolderAssignment: ANYONE_CAN_DO_ANYTHING,
-  calendarEventLink: ANYONE_CAN_DO_ANYTHING,
-  dailyReviewState: ANYONE_CAN_DO_ANYTHING,
+type ZeroAuthData = {
+  sub: string
+}
+
+const denyWrites = {
+  insert: NOBODY_CAN,
+  update: {
+    preMutation: NOBODY_CAN,
+    postMutation: NOBODY_CAN,
+  },
+  delete: NOBODY_CAN,
+}
+
+export const permissions = definePermissions<ZeroAuthData, Schema>(schema, () => ({
+  block: {
+    row: {
+      select: [(authData, { cmp }) => cmp('userId', authData.sub)],
+      ...denyWrites,
+    },
+  },
+  dailyBlock: {
+    row: {
+      select: [(authData, { cmp }) => cmp('userId', authData.sub)],
+      ...denyWrites,
+    },
+  },
+  todoBlock: {
+    row: {
+      select: [(authData, { cmp }) => cmp('userId', authData.sub)],
+      ...denyWrites,
+    },
+  },
+  folder: {
+    row: {
+      select: [(authData, { cmp }) => cmp('userId', authData.sub)],
+      ...denyWrites,
+    },
+  },
+  blockFolderAssignment: {
+    row: {
+      select: [(authData, { cmp }) => cmp('userId', authData.sub)],
+      ...denyWrites,
+    },
+  },
+  calendarEventLink: {
+    row: {
+      select: [(authData, { cmp }) => cmp('userId', authData.sub)],
+      ...denyWrites,
+    },
+  },
+  dailyReviewState: {
+    row: {
+      select: [(authData, { cmp }) => cmp('userId', authData.sub)],
+      ...denyWrites,
+    },
+  },
 }))
 
 declare module '@rocicorp/zero' {

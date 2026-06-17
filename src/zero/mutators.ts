@@ -1,41 +1,97 @@
 import { defineMutator, defineMutators } from '@rocicorp/zero'
-import { z } from 'zod'
-import { zql } from './schema'
+import {
+  blockMutatorCommandSchemas,
+  executeCreateBlockCommand,
+  executePatchBlockCommand,
+} from '@/lib/blocks'
 
 export const mutators = defineMutators({
   blocks: {
+    createOnDate: defineMutator(
+      blockMutatorCommandSchemas.createOnDate,
+      async ({ ctx: { userID }, args }) => {
+        await executeCreateBlockCommand({
+          userId: userID,
+          command: args,
+        })
+      },
+    ),
     updateContent: defineMutator(
-      z.object({
-        id: z.string(),
-        content: z.string(),
-      }),
+      blockMutatorCommandSchemas.updateContent,
       async ({ tx, ctx: { userID }, args }) => {
-        const existing = await zql.block.where('id', args.id).where('userId', userID).one()
-        if (!existing) throw new Error('Block not found')
-
-        await tx.mutate.block.update({
-          id: args.id,
-          content: args.content,
-          updatedAt: Date.now(),
+        void tx
+        await executePatchBlockCommand({
+          userId: userID,
+          blockId: args.id,
+          command: { action: 'updateContent', content: args.content },
+        })
+      },
+    ),
+    convertToTodo: defineMutator(
+      blockMutatorCommandSchemas.convertToTodo,
+      async ({ ctx: { userID }, args }) => {
+        await executePatchBlockCommand({
+          userId: userID,
+          blockId: args.id,
+          command: { action: 'convertToTodo', content: args.content },
+        })
+      },
+    ),
+    toggleTodo: defineMutator(
+      blockMutatorCommandSchemas.toggleTodo,
+      async ({ ctx: { userID }, args }) => {
+        await executePatchBlockCommand({
+          userId: userID,
+          blockId: args.id,
+          command: { action: 'toggleTodo' },
         })
       },
     ),
     setCollapsed: defineMutator(
-      z.object({
-        id: z.string(),
-        isCollapsed: z.boolean(),
-      }),
+      blockMutatorCommandSchemas.setCollapsed,
       async ({ tx, ctx: { userID }, args }) => {
-        const existing = await zql.block.where('id', args.id).where('userId', userID).one()
-        if (!existing) throw new Error('Block not found')
-
-        await tx.mutate.block.update({
-          id: args.id,
-          isCollapsed: args.isCollapsed,
-          updatedAt: Date.now(),
+        void tx
+        await executePatchBlockCommand({
+          userId: userID,
+          blockId: args.id,
+          command: { action: 'setCollapsed', isCollapsed: args.isCollapsed },
+        })
+      },
+    ),
+    move: defineMutator(
+      blockMutatorCommandSchemas.move,
+      async ({ ctx: { userID }, args }) => {
+        await executePatchBlockCommand({
+          userId: userID,
+          blockId: args.id,
+          command: {
+            action: 'move',
+            targetDate: args.targetDate,
+            placement: args.placement,
+            referenceBlockId: args.referenceBlockId,
+          },
+        })
+      },
+    ),
+    indent: defineMutator(
+      blockMutatorCommandSchemas.indent,
+      async ({ ctx: { userID }, args }) => {
+        await executePatchBlockCommand({
+          userId: userID,
+          blockId: args.id,
+          command: { action: 'indent' },
+        })
+      },
+    ),
+    outdent: defineMutator(
+      blockMutatorCommandSchemas.outdent,
+      async ({ ctx: { userID }, args }) => {
+        await executePatchBlockCommand({
+          userId: userID,
+          blockId: args.id,
+          command: { action: 'outdent' },
         })
       },
     ),
   },
 })
-

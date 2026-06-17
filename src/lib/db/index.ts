@@ -2,7 +2,7 @@ import pg from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import * as schema from './schema.ts'
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/libt_app'
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:55432/libt_app'
 
 let dbSingleton: ReturnType<typeof createDb> | null = null
 
@@ -22,4 +22,3 @@ export function getDb() {
 export const db = getDb()
 
 export * from './schema.ts'
-

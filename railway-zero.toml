@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+installCommand = "npm ci"
+buildCommand = "echo 'skip build for zero-cache'"
+
+[deploy]
+startCommand = "bash ./start-zero-cache-railway.sh"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+
+[service]
+internalPort = 4848

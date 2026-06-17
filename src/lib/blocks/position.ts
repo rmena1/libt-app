@@ -16,6 +16,14 @@ export function nextPositionAfter(lastPosition: Position | null | undefined): Po
   return formatPosition(parsed + POSITION_STEP)
 }
 
+export function positionForIndex(index: number): Position {
+  if (!Number.isSafeInteger(index) || index < 0) {
+    throw new Error(`Invalid position index: ${index}`)
+  }
+
+  return formatPosition((index + 1) * POSITION_STEP)
+}
+
 export function comparePositions(left: Position, right: Position): number {
   if (left === right) return 0
   return left < right ? -1 : 1

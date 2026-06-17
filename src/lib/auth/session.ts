@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation'
 import { and, eq, gt, lt } from 'drizzle-orm'
 import { db, sessions, users } from '@/lib/db'
 import { generateId } from '@/lib/shared/id'
+import { canAccessApp } from './admission'
+import { SESSION_COOKIE_NAME } from './constants'
 
-export const SESSION_COOKIE_NAME = 'libt_session'
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000
 
 export interface SessionUser {
@@ -43,13 +44,18 @@ export async function getSession(): Promise<SessionUser | null> {
     .select({
       userId: sessions.userId,
       email: users.email,
+      isActive: users.isActive,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, Date.now())))
     .limit(1)
 
-  if (result.length === 0) {
+  if (result.length === 0 || !canAccessApp(result[0])) {
+    if (result.length > 0) {
+      await db.delete(sessions).where(eq(sessions.id, sessionId))
+    }
+
     try {
       cookieStore.delete(SESSION_COOKIE_NAME)
     } catch {}
@@ -82,4 +88,3 @@ export async function destroySession(): Promise<void> {
 export async function cleanupExpiredSessions(): Promise<void> {
   await db.delete(sessions).where(lt(sessions.expiresAt, Date.now()))
 }
-

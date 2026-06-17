@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+delete process.env.NO_COLOR
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -19,13 +21,24 @@ export default defineConfig({
       name: 'Desktop Chrome',
       use: {
         ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 720 },
+        viewport: { width: 1280, height: 900 },
+      },
+    },
+    {
+      name: 'Mobile Chrome',
+      use: {
+        ...devices['Pixel 5'],
         launchOptions: {
           args: ['--disable-web-security', '--disable-features=IsolateOrigins,site-per-process'],
         },
       },
     },
   ],
+  webServer: {
+    command: 'node scripts/e2e-server.mjs',
+    url: 'http://localhost:3000',
+    reuseExistingServer: false,
+    timeout: 120000,
+  },
   outputDir: './screenshots',
 })
-

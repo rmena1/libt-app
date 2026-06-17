@@ -4,6 +4,7 @@ import {
   boolean,
   type AnyPgColumn,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -11,6 +12,7 @@ import {
   pgTable,
   primaryKey,
   text,
+  unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
@@ -34,6 +36,7 @@ export const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  isActive: boolean('is_active').notNull().default(false),
   timezone: text('timezone').notNull().default('America/Santiago'),
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
@@ -75,14 +78,15 @@ export const blocks = pgTable('blocks', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   kind: blockKind('kind').notNull(),
-  parentBlockId: text('parent_block_id').references((): AnyPgColumn => blocks.id, { onDelete: 'cascade' }),
-  dailyBlockId: text('daily_block_id').notNull().references((): AnyPgColumn => blocks.id, { onDelete: 'cascade' }),
+  parentBlockId: text('parent_block_id'),
+  dailyBlockId: text('daily_block_id').notNull(),
   position: text('position').notNull(),
   content: text('content').notNull().default(''),
   isCollapsed: boolean('is_collapsed').notNull().default(false),
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
+  unique('blocks_id_user_id_unique').on(table.id, table.userId),
   index('idx_blocks_user_daily').on(table.userId, table.dailyBlockId),
   index('idx_blocks_user_kind').on(table.userId, table.kind),
   index('idx_blocks_parent').on(table.parentBlockId, table.position),
@@ -101,20 +105,35 @@ export const blocks = pgTable('blocks', {
       AND ${table.parentBlockId} IS NOT NULL
     )`,
   ),
+  foreignKey({
+    name: 'blocks_parent_same_user_fk',
+    columns: [table.parentBlockId, table.userId],
+    foreignColumns: [table.id, table.userId],
+  }).onDelete('cascade'),
+  foreignKey({
+    name: 'blocks_daily_same_user_fk',
+    columns: [table.dailyBlockId, table.userId],
+    foreignColumns: [table.id, table.userId],
+  }).onDelete('cascade'),
 ])
 
 export const dailyBlocks = pgTable('daily_blocks', {
-  blockId: text('block_id').primaryKey().references(() => blocks.id, { onDelete: 'cascade' }),
+  blockId: text('block_id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   date: text('date').notNull(),
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
   uniqueIndex('idx_daily_blocks_user_date').on(table.userId, table.date),
   check('daily_blocks_date_check', sql`${table.date} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
+  foreignKey({
+    name: 'daily_blocks_block_same_user_fk',
+    columns: [table.blockId, table.userId],
+    foreignColumns: [blocks.id, blocks.userId],
+  }).onDelete('cascade'),
 ])
 
 export const todoBlocks = pgTable('todo_blocks', {
-  blockId: text('block_id').primaryKey().references(() => blocks.id, { onDelete: 'cascade' }),
+  blockId: text('block_id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   status: todoStatus('status').notNull().default('pending'),
   dueTime: text('due_time'),
@@ -125,10 +144,16 @@ export const todoBlocks = pgTable('todo_blocks', {
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
+  unique('todo_blocks_block_id_user_id_unique').on(table.blockId, table.userId),
   index('idx_todo_blocks_user_status').on(table.userId, table.status),
   index('idx_todo_blocks_user_priority').on(table.userId, table.priority),
   index('idx_todo_blocks_recurrence_parent').on(table.recurrenceParentId),
   check('todo_blocks_due_time_check', sql`${table.dueTime} IS NULL OR ${table.dueTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  foreignKey({
+    name: 'todo_blocks_block_same_user_fk',
+    columns: [table.blockId, table.userId],
+    foreignColumns: [blocks.id, blocks.userId],
+  }).onDelete('cascade'),
 ])
 
 export const folders = pgTable('folders', {
@@ -137,11 +162,12 @@ export const folders = pgTable('folders', {
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   path: text('path').notNull(),
-  parentFolderId: text('parent_folder_id').references((): AnyPgColumn => folders.id, { onDelete: 'cascade' }),
+  parentFolderId: text('parent_folder_id'),
   position: text('position').notNull(),
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
+  unique('folders_id_user_id_unique').on(table.id, table.userId),
   index('idx_folders_user').on(table.userId),
   index('idx_folders_parent').on(table.parentFolderId),
   uniqueIndex('idx_folders_user_path').on(table.userId, table.path),
@@ -157,23 +183,38 @@ export const folders = pgTable('folders', {
   uniqueIndex('idx_folders_child_position')
     .on(table.userId, table.parentFolderId, table.position)
     .where(sql`${table.parentFolderId} IS NOT NULL`),
+  foreignKey({
+    name: 'folders_parent_same_user_fk',
+    columns: [table.parentFolderId, table.userId],
+    foreignColumns: [table.id, table.userId],
+  }).onDelete('cascade'),
 ])
 
 export const blockFolderAssignments = pgTable('block_folder_assignments', {
-  blockId: text('block_id').notNull().references(() => blocks.id, { onDelete: 'cascade' }),
-  folderId: text('folder_id').notNull().references(() => folders.id, { onDelete: 'cascade' }),
+  blockId: text('block_id').notNull(),
+  folderId: text('folder_id').notNull(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
   primaryKey({ columns: [table.blockId, table.folderId] }),
   index('idx_block_folder_assignments_user_folder').on(table.userId, table.folderId),
   index('idx_block_folder_assignments_user_block').on(table.userId, table.blockId),
+  foreignKey({
+    name: 'block_folder_assignments_block_same_user_fk',
+    columns: [table.blockId, table.userId],
+    foreignColumns: [blocks.id, blocks.userId],
+  }).onDelete('cascade'),
+  foreignKey({
+    name: 'block_folder_assignments_folder_same_user_fk',
+    columns: [table.folderId, table.userId],
+    foreignColumns: [folders.id, folders.userId],
+  }).onDelete('cascade'),
 ])
 
 export const calendarEventLinks = pgTable('calendar_event_links', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  blockId: text('block_id').notNull().references(() => blocks.id, { onDelete: 'cascade' }),
+  blockId: text('block_id').notNull(),
   provider: text('provider').notNull().default('google'),
   providerEventId: text('provider_event_id').notNull(),
   syncedTitle: text('synced_title'),
@@ -186,6 +227,11 @@ export const calendarEventLinks = pgTable('calendar_event_links', {
   uniqueIndex('idx_calendar_event_links_provider_event').on(table.userId, table.provider, table.providerEventId),
   uniqueIndex('idx_calendar_event_links_block_provider').on(table.blockId, table.provider),
   index('idx_calendar_event_links_user_block').on(table.userId, table.blockId),
+  foreignKey({
+    name: 'calendar_event_links_block_same_user_fk',
+    columns: [table.blockId, table.userId],
+    foreignColumns: [blocks.id, blocks.userId],
+  }).onDelete('cascade'),
 ])
 
 export const dailyReviewStates = pgTable('daily_review_states', {
@@ -220,13 +266,14 @@ export const agentConversations = pgTable('agent_conversations', {
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
+  unique('agent_conversations_id_user_id_unique').on(table.id, table.userId),
   index('idx_agent_conversations_user').on(table.userId),
   index('idx_agent_conversations_updated').on(table.userId, table.updatedAt),
 ])
 
 export const agentMessages = pgTable('agent_messages', {
   id: text('id').primaryKey(),
-  conversationId: text('conversation_id').notNull().references(() => agentConversations.id, { onDelete: 'cascade' }),
+  conversationId: text('conversation_id').notNull(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: aiMessageRole('role').notNull(),
   content: text('content').notNull(),
@@ -235,6 +282,11 @@ export const agentMessages = pgTable('agent_messages', {
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
   index('idx_agent_messages_conversation').on(table.conversationId, table.createdAt),
+  foreignKey({
+    name: 'agent_messages_conversation_same_user_fk',
+    columns: [table.conversationId, table.userId],
+    foreignColumns: [agentConversations.id, agentConversations.userId],
+  }).onDelete('cascade'),
 ])
 
 export type AgentModel = typeof agentModels.$inferSelect
