@@ -20,8 +20,24 @@ export function useDailyController() {
   const [pendingFocusBlockId, setPendingFocusBlockId] = useState<string | null>(null)
   const [pendingFocusShellDate, setPendingFocusShellDate] = useState<string | null>(null)
   const expandTimerRef = useRef<number | null>(null)
+  const focusRequestSeqRef = useRef(0)
   const pendingCreatesRef = useRef<Map<string, Promise<CreatedBlock>>>(new Map())
   const pendingAppendCreatesRef = useRef<Map<string, Promise<CreatedBlock>>>(new Map())
+  const pendingPatchesRef = useRef<Map<string, Promise<void>>>(new Map())
+
+  const requestBlockFocus = useCallback((blockId: string) => {
+    focusRequestSeqRef.current += 1
+    setPendingFocusShellDate(null)
+    setPendingFocusBlockId(blockId)
+    return focusRequestSeqRef.current
+  }, [])
+
+  const requestShellFocus = useCallback((date: string) => {
+    focusRequestSeqRef.current += 1
+    setPendingFocusBlockId(null)
+    setPendingFocusShellDate(date)
+    return focusRequestSeqRef.current
+  }, [])
 
   useLayoutEffect(() => {
     if (!pendingFocusBlockId && !pendingFocusShellDate) return
@@ -33,7 +49,7 @@ export function useDailyController() {
       const input = document.querySelector(`[data-testid="${testId}"]`)
       if (!(input instanceof HTMLTextAreaElement)) return
 
-      input.focus()
+      input.focus({ preventScroll: true })
       const cursorPosition = input.value.length
       input.setSelectionRange(cursorPosition, cursorPosition)
       setPendingFocusBlockId(null)
@@ -52,8 +68,15 @@ export function useDailyController() {
       content: input.content ?? '',
     }
 
+    const structuralDependency = input.afterBlockId
+      ? pendingPatchesRef.current.get(input.afterBlockId)
+      : input.parentBlockId
+        ? pendingPatchesRef.current.get(input.parentBlockId)
+        : null
+    if (structuralDependency) await structuralDependency.catch(() => {})
+
     timeline.applyOptimisticCreateBlock(command)
-    if (input.focus !== false) setPendingFocusBlockId(blockId)
+    if (input.focus !== false) requestBlockFocus(blockId)
 
     const appendKey = input.afterBlockId ? null : appendDependencyKey(input)
     const dependency = input.afterBlockId
@@ -95,30 +118,46 @@ export function useDailyController() {
     if (appendKey) pendingAppendCreatesRef.current.set(appendKey, persistPromise)
     persistPromise.then(cleanupPendingCreate, cleanupPendingCreate)
     return { id: blockId }
-  }, [timeline])
+  }, [requestBlockFocus, timeline])
 
   const patchBlock = useCallback(async (blockId: string, body: object, options?: PatchBlockOptions) => {
     timeline.applyOptimisticPatchBlock(blockId, body)
     const focusBlockId = options?.focusBlockId ?? (options?.refocus ? blockId : null)
-    if (focusBlockId) setPendingFocusBlockId(focusBlockId)
-    if (options?.focusShellDate) setPendingFocusShellDate(options.focusShellDate)
+    const focusRequestSeq = focusBlockId
+      ? requestBlockFocus(focusBlockId)
+      : options?.focusShellDate
+        ? requestShellFocus(options.focusShellDate)
+        : null
 
-    const response = await fetch(`/api/blocks/${blockId}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+    const patchPromise = (async () => {
+      const response = await fetch(`/api/blocks/${blockId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        await timeline.refresh().catch(() => {})
+        throw new Error('No se pudo actualizar el bloque')
+      }
+
+      if (isStructuralPatch(body)) {
+        await timeline.refresh()
+        if (focusRequestSeq === focusRequestSeqRef.current) {
+          if (focusBlockId) setPendingFocusBlockId(focusBlockId)
+          if (options?.focusShellDate) setPendingFocusShellDate(options.focusShellDate)
+        }
+      }
+    })()
+
+    pendingPatchesRef.current.set(blockId, patchPromise)
+    patchPromise.finally(() => {
+      if (pendingPatchesRef.current.get(blockId) === patchPromise) {
+        pendingPatchesRef.current.delete(blockId)
+      }
     })
-    if (!response.ok) {
-      await timeline.refresh().catch(() => {})
-      throw new Error('No se pudo actualizar el bloque')
-    }
 
-    if (isStructuralPatch(body)) {
-      await timeline.refresh()
-      if (focusBlockId) setPendingFocusBlockId(focusBlockId)
-      if (options?.focusShellDate) setPendingFocusShellDate(options.focusShellDate)
-    }
-  }, [timeline])
+    await patchPromise
+  }, [requestBlockFocus, requestShellFocus, timeline])
 
   const moveDraggedBlock = useCallback(async (target: DropState) => {
     if (!dragState) return
