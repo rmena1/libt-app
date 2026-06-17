@@ -18,24 +18,30 @@ export function useDailyController() {
   const [dropState, setDropState] = useState<DropState | null>(null)
   const [isAiOpen, setIsAiOpen] = useState(false)
   const [pendingFocusBlockId, setPendingFocusBlockId] = useState<string | null>(null)
+  const [pendingFocusShellDate, setPendingFocusShellDate] = useState<string | null>(null)
   const expandTimerRef = useRef<number | null>(null)
   const pendingCreatesRef = useRef<Map<string, Promise<CreatedBlock>>>(new Map())
+  const pendingAppendCreatesRef = useRef<Map<string, Promise<CreatedBlock>>>(new Map())
 
   useLayoutEffect(() => {
-    if (!pendingFocusBlockId) return
+    if (!pendingFocusBlockId && !pendingFocusShellDate) return
 
     const frame = window.requestAnimationFrame(() => {
-      const input = document.querySelector(`[data-testid="block-input-${pendingFocusBlockId}"]`)
+      const testId = pendingFocusBlockId
+        ? `block-input-${pendingFocusBlockId}`
+        : `day-shell-input-${pendingFocusShellDate}`
+      const input = document.querySelector(`[data-testid="${testId}"]`)
       if (!(input instanceof HTMLTextAreaElement)) return
 
       input.focus()
       const cursorPosition = input.value.length
       input.setSelectionRange(cursorPosition, cursorPosition)
       setPendingFocusBlockId(null)
+      setPendingFocusShellDate(null)
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [pendingFocusBlockId, timeline.recordsByDate])
+  }, [pendingFocusBlockId, pendingFocusShellDate, timeline.recordsByDate])
 
   const createBlock = useCallback(async (input: CreateBlockInput): Promise<CreatedBlock> => {
     const blockId = input.id ?? generateId()
@@ -49,7 +55,10 @@ export function useDailyController() {
     timeline.applyOptimisticCreateBlock(command)
     if (input.focus !== false) setPendingFocusBlockId(blockId)
 
-    const dependency = input.afterBlockId ? pendingCreatesRef.current.get(input.afterBlockId) : null
+    const appendKey = input.afterBlockId ? null : appendDependencyKey(input)
+    const dependency = input.afterBlockId
+      ? pendingCreatesRef.current.get(input.afterBlockId)
+      : pendingAppendCreatesRef.current.get(appendKey ?? '')
     const persistPromise = (async () => {
       try {
         if (dependency) await dependency
@@ -72,18 +81,27 @@ export function useDailyController() {
       } catch (error) {
         await timeline.refresh().catch(() => {})
         throw error
-      } finally {
-        pendingCreatesRef.current.delete(blockId)
       }
     })()
 
+    const cleanupPendingCreate = () => {
+      pendingCreatesRef.current.delete(blockId)
+      if (appendKey && pendingAppendCreatesRef.current.get(appendKey) === persistPromise) {
+        pendingAppendCreatesRef.current.delete(appendKey)
+      }
+    }
+
     pendingCreatesRef.current.set(blockId, persistPromise)
+    if (appendKey) pendingAppendCreatesRef.current.set(appendKey, persistPromise)
+    persistPromise.then(cleanupPendingCreate, cleanupPendingCreate)
     return { id: blockId }
   }, [timeline])
 
   const patchBlock = useCallback(async (blockId: string, body: object, options?: PatchBlockOptions) => {
     timeline.applyOptimisticPatchBlock(blockId, body)
-    if (options?.refocus) setPendingFocusBlockId(blockId)
+    const focusBlockId = options?.focusBlockId ?? (options?.refocus ? blockId : null)
+    if (focusBlockId) setPendingFocusBlockId(focusBlockId)
+    if (options?.focusShellDate) setPendingFocusShellDate(options.focusShellDate)
 
     const response = await fetch(`/api/blocks/${blockId}`, {
       method: 'PATCH',
@@ -97,7 +115,8 @@ export function useDailyController() {
 
     if (isStructuralPatch(body)) {
       await timeline.refresh()
-      if (options?.refocus) setPendingFocusBlockId(blockId)
+      if (focusBlockId) setPendingFocusBlockId(focusBlockId)
+      if (options?.focusShellDate) setPendingFocusShellDate(options.focusShellDate)
     }
   }, [timeline])
 
@@ -155,5 +174,9 @@ export function useDailyController() {
 
 function isStructuralPatch(body: object) {
   if (!('action' in body) || typeof body.action !== 'string') return false
-  return body.action === 'move' || body.action === 'indent' || body.action === 'outdent'
+  return body.action === 'move' || body.action === 'indent' || body.action === 'outdent' || body.action === 'delete'
+}
+
+function appendDependencyKey(input: CreateBlockInput) {
+  return `${input.date}:${input.parentBlockId ?? 'daily-root'}`
 }

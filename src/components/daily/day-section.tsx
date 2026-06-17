@@ -11,6 +11,7 @@ import type {
   DropState,
   PatchBlockOptions,
   TimelineBlock,
+  TreeBlock,
 } from './types'
 import { buildTree, formatDateTitle } from './view-model'
 
@@ -47,6 +48,7 @@ export function DaySection(props: DaySectionProps) {
     registerDateRef,
   } = props
   const tree = useMemo(() => buildTree(record), [record])
+  const previousBlockIds = useMemo(() => visiblePreviousBlockIds(tree), [tree])
   const title = formatDateTitle(date)
 
   return (
@@ -80,6 +82,7 @@ export function DaySection(props: DaySectionProps) {
             block={block}
             date={date}
             depth={0}
+            previousBlockIds={previousBlockIds}
             dropState={dropState}
             setDropState={setDropState}
             setDragState={setDragState}
@@ -114,6 +117,28 @@ export function DaySection(props: DaySectionProps) {
       />
     </section>
   )
+}
+
+function visiblePreviousBlockIds(blocks: TreeBlock[]): Map<string, string | null> {
+  const previousById = new Map<string, string | null>()
+  let previousId: string | null = null
+
+  const visit = (block: TreeBlock) => {
+    previousById.set(block.id, previousId)
+    previousId = block.id
+
+    if (!block.isCollapsed) {
+      for (const child of block.children) {
+        visit(child)
+      }
+    }
+  }
+
+  for (const block of blocks) {
+    visit(block)
+  }
+
+  return previousById
 }
 
 function DailyShellInput(props: {

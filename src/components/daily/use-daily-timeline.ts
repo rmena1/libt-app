@@ -101,6 +101,16 @@ export function useDailyTimeline() {
 
   const applyOptimisticPatchBlock = useCallback((blockId: string, body: object) => {
     setRecords((currentRecords) => currentRecords.map((record) => {
+      if (isDeletePatch(body)) {
+        const idsToDelete = collectOptimisticSubtreeIds(record.blocks, blockId)
+        if (idsToDelete.size === 0) return record
+
+        return {
+          ...record,
+          blocks: record.blocks.filter((block) => !idsToDelete.has(block.id)),
+        }
+      }
+
       let didChange = false
       const blocks = record.blocks.map((block) => {
         if (block.id !== blockId) return block
@@ -354,4 +364,32 @@ function applyPatchToBlock(block: TimelineBlock, body: object): TimelineBlock {
   }
 
   return block
+}
+
+function isDeletePatch(body: object): boolean {
+  return 'action' in body && body.action === 'delete'
+}
+
+function collectOptimisticSubtreeIds(blocks: TimelineBlock[], rootBlockId: string): Set<string> {
+  if (!blocks.some((block) => block.id === rootBlockId)) return new Set()
+
+  const childrenByParent = new Map<string, TimelineBlock[]>()
+  for (const block of blocks) {
+    if (!block.parentBlockId) continue
+
+    const children = childrenByParent.get(block.parentBlockId) ?? []
+    children.push(block)
+    childrenByParent.set(block.parentBlockId, children)
+  }
+
+  const ids = new Set<string>()
+  const visit = (id: string) => {
+    ids.add(id)
+    for (const child of childrenByParent.get(id) ?? []) {
+      visit(child.id)
+    }
+  }
+
+  visit(rootBlockId)
+  return ids
 }

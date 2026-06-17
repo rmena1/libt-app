@@ -8,6 +8,7 @@ import {
 } from './service.ts'
 import {
   createBlockOnDate,
+  deleteBlock,
   indentBlock,
   moveBlock,
   outdentBlock,
@@ -58,6 +59,10 @@ const outdentCommandSchema = z.object({
   action: z.literal('outdent'),
 })
 
+const deleteCommandSchema = z.object({
+  action: z.literal('delete'),
+})
+
 export const patchBlockCommandSchema = z.discriminatedUnion('action', [
   updateContentCommandSchema,
   convertToTodoCommandSchema,
@@ -66,6 +71,7 @@ export const patchBlockCommandSchema = z.discriminatedUnion('action', [
   moveCommandSchema,
   indentCommandSchema,
   outdentCommandSchema,
+  deleteCommandSchema,
 ])
 
 const blockIdArgumentSchema = z.object({
@@ -91,6 +97,7 @@ export const blockMutatorCommandSchemas = {
   }),
   indent: blockIdArgumentSchema,
   outdent: blockIdArgumentSchema,
+  delete: blockIdArgumentSchema,
 } as const
 
 export type CreateBlockCommand = z.infer<typeof createBlockCommandSchema>
@@ -166,6 +173,10 @@ export async function executePatchBlockCommand(input: {
 
     case 'outdent':
       await outdentBlock({ userId, blockId })
+      return { kind: 'ok' }
+
+    case 'delete':
+      await deleteBlock({ userId, blockId })
       return { kind: 'ok' }
   }
 }

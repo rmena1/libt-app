@@ -8,6 +8,7 @@ interface BlockRowProps {
   block: TreeBlock
   date: string
   depth: number
+  previousBlockIds: Map<string, string | null>
   dropState: DropState | null
   setDropState: (target: DropState | null) => void
   setDragState: (state: { blockId: string } | null) => void
@@ -31,6 +32,7 @@ export function BlockRow(props: BlockRowProps) {
   } = usePersistedBlockEditor({
     block: props.block,
     date: props.date,
+    previousBlockId: props.previousBlockIds.get(props.block.id) ?? null,
     onCreateBlock: props.onCreateBlock,
     onPatchBlock: props.onPatchBlock,
   })

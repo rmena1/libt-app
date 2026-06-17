@@ -93,5 +93,15 @@ export const mutators = defineMutators({
         })
       },
     ),
+    delete: defineMutator(
+      blockMutatorCommandSchemas.delete,
+      async ({ ctx: { userID }, args }) => {
+        await executePatchBlockCommand({
+          userId: userID,
+          blockId: args.id,
+          command: { action: 'delete' },
+        })
+      },
+    ),
   },
 })

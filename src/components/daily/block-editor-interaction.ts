@@ -10,6 +10,7 @@ type PatchBlock = (blockId: string, body: object, options?: PatchBlockOptions) =
 interface PersistedBlockEditorInput {
   block: Pick<TreeBlock, 'id' | 'kind' | 'content'>
   date: string
+  previousBlockId?: string | null
   onCreateBlock: CreateBlock
   onPatchBlock: PatchBlock
 }
@@ -25,6 +26,19 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
     contentRef.current = content
     setLocalContentState(content)
   }, [])
+
+  const convertInlineTodoPrefix = useCallback((content: string) => {
+    const todoContent = todoContentFromMarkdownShortcut(input.block.kind, content)
+    if (todoContent === null) return false
+
+    setLocalContent(todoContent)
+    savedContentRef.current = todoContent
+    input.onPatchBlock(input.block.id, {
+      action: 'convertToTodo',
+      content: todoContent,
+    }, { refocus: true }).catch(() => {})
+    return true
+  }, [input, setLocalContent])
 
   const saveContent = useCallback(async () => {
     if (savePromiseRef.current) return savePromiseRef.current
@@ -71,7 +85,24 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
     saveContent().catch(() => {})
   }, [input, saveContent])
 
+  const deleteEmptyBlock = useCallback(() => {
+    const focusOptions = input.previousBlockId
+      ? { focusBlockId: input.previousBlockId }
+      : { focusShellDate: input.date }
+
+    input.onPatchBlock(input.block.id, { action: 'delete' }, focusOptions).catch(() => {})
+  }, [input])
+
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Backspace' && contentRef.current.length === 0) {
+      const textarea = event.currentTarget
+      if (textarea.selectionStart === 0 && textarea.selectionEnd === 0) {
+        event.preventDefault()
+        deleteEmptyBlock()
+        return
+      }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       createBlockAfter()
@@ -83,7 +114,7 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
       event.stopPropagation()
       saveThenPatch({ action: event.shiftKey ? 'outdent' : 'indent' }, { refocus: true })
     }
-  }, [createBlockAfter, saveThenPatch])
+  }, [createBlockAfter, deleteEmptyBlock, saveThenPatch])
 
   const handleBlur = useCallback(() => {
     saveContent().catch(() => {})
@@ -92,7 +123,10 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
   return {
     textareaRef,
     localContent,
-    setLocalContent,
+    setLocalContent: (content: string) => {
+      if (convertInlineTodoPrefix(content)) return
+      setLocalContent(content)
+    },
     saveContent,
     handleBlur,
     handleKeyDown,
@@ -164,4 +198,10 @@ function useAutosizingTextarea(content: string) {
   }, [content])
 
   return textareaRef
+}
+
+function todoContentFromMarkdownShortcut(kind: TreeBlock['kind'], content: string): string | null {
+  if (kind !== 'text') return null
+  if (!/^\s*\[\]\s+/.test(content)) return null
+  return content.trimStart().replace(/^\[\]\s+/, '')
 }

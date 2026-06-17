@@ -127,6 +127,34 @@ test.describe('daily view and app shell', () => {
     await expect(page.locator(`[data-date="${targetDate}"]`).getByTestId(`block-input-${first.id}`)).toHaveValue(first.content)
   })
 
+  test('desktop block editor deletes empty blocks and converts todo shortcuts immediately', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only block editor assertions')
+
+    const date = addDays(todayIso(), 6)
+    const first = await createBlock(page, { date, content: `Previous ${Date.now()}` })
+    const second = await createBlock(page, { date, content: `Delete me ${Date.now()}` })
+    const todo = await createBlock(page, { date, content: '' })
+
+    await page.reload()
+    await goToDate(page, date)
+
+    const secondInput = page.getByTestId(`block-input-${second.id}`)
+    await secondInput.fill('')
+    await secondInput.press('Backspace')
+    await expect(page.getByTestId(`block-input-${second.id}`)).toHaveCount(0)
+    await expect(page.getByTestId(`block-input-${first.id}`)).toBeFocused()
+    await expect(page.getByTestId(`block-input-${first.id}`)).toHaveValue(first.content)
+
+    const todoInput = page.getByTestId(`block-input-${todo.id}`)
+    await todoInput.click()
+    await page.keyboard.type('[] ')
+    await expect(page.getByTestId(`todo-toggle-${todo.id}`)).toBeVisible()
+    await expect(todoInput).toBeFocused()
+    await expect(todoInput).toHaveValue('')
+    await page.keyboard.type('Comprar cafe')
+    await expect(todoInput).toHaveValue('Comprar cafe')
+  })
+
   test('rejects cross-date reference mismatch without creating an empty daily block', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only API invariant')
 

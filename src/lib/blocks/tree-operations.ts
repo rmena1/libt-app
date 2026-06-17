@@ -222,6 +222,25 @@ export async function outdentBlock(input: { userId: string; blockId: string }): 
   })
 }
 
+export async function deleteBlock(input: { userId: string; blockId: string }): Promise<void> {
+  await db.transaction(async (tx) => {
+    const block = await findRequiredUserBlockForTx(tx, input.userId, input.blockId)
+    if (block.kind === 'daily') throw new Error('Daily blocks cannot be deleted')
+    if (!block.parentBlockId) throw new Error('Block parent not found')
+
+    const siblings = await findOrderedChildrenForTx(tx, input.userId, block.parentBlockId)
+    const remainingSiblingIds = siblings
+      .filter((sibling) => sibling.id !== input.blockId)
+      .map((sibling) => sibling.id)
+
+    await tx
+      .delete(blocks)
+      .where(and(eq(blocks.id, input.blockId), eq(blocks.userId, input.userId)))
+
+    await rebalanceSiblingPositionsForTx(tx, remainingSiblingIds, nowMs())
+  })
+}
+
 async function resolveCreateParentForTx(
   tx: BlockTreeTransaction,
   input: {
