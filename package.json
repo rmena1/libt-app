@@ -2,6 +2,15 @@
   "name": "libt-app",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rmena1/libt-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rmena1/libt-app/issues"
+  },
+  "homepage": "https://github.com/rmena1/libt-app#readme",
   "type": "module",
   "scripts": {
     "dev": "next dev",
