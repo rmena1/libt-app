@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import pg from 'pg'
 
 const ACTIVE_USER_EMAIL = process.env.SEED_ACTIVE_USER_EMAIL || 'active@example.com'
@@ -69,6 +69,41 @@ test.describe('daily view and app shell', () => {
     await expect(section.locator('.block-editor.is-complete')).toBeVisible()
 
     await section.locator('[data-testid^="outdent-"]').last().click()
+  })
+
+  test('desktop recording panel accepts an audio upload workflow', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only recording panel')
+
+    const today = todayIso()
+    const section = page.locator(`[data-date="${today}"]`)
+
+    await page.reload()
+    await expect(page.getByTestId('recording-panel')).toBeVisible()
+    await expect(page.getByTestId('record-meeting-button')).toBeVisible()
+    await expect(page.getByTestId('record-video-button')).toBeVisible()
+
+    const chooserPromise = page.waitForEvent('filechooser')
+    await page.getByTestId('upload-audio-button').click()
+    const chooser = await chooserPromise
+    await chooser.setFiles({
+      name: 'meeting.webm',
+      mimeType: 'audio/webm',
+      buffer: Buffer.from('mock audio'),
+    })
+
+    await expect(page.getByTestId('upload-audio-button')).toBeEnabled({ timeout: 15000 })
+    await page.reload()
+    await goToDate(page, today)
+
+    await expect.poll(async () => textareaValues(section)).toContain('meetings')
+    await expect.poll(async () => textareaValues(section)).toContain('summary')
+    await expect.poll(async () => textareaValues(section)).toContain('transcription')
+    await expect.poll(async () => (await textareaValues(section)).some((value) =>
+      value.includes('Reunion e2e de prueba'),
+    )).toBe(true)
+    await expect.poll(async () => (await textareaValues(section)).some((value) =>
+      value.includes('pipeline de transcripcion'),
+    )).toBe(true)
   })
 
   test('desktop virtual scroll and calendar navigation keep focused date in sync', async ({ page }, testInfo) => {
@@ -292,6 +327,12 @@ async function blockIdFromInput(input: ReturnType<Page['locator']>) {
   const testId = await input.getAttribute('data-testid')
   if (!testId) throw new Error('Missing block input test id')
   return testId.replace('block-input-', '')
+}
+
+async function textareaValues(scope: Locator) {
+  return scope.locator('textarea').evaluateAll((nodes) =>
+    nodes.map((node) => (node as HTMLTextAreaElement).value),
+  )
 }
 
 async function activeBlockInputId(page: Page) {

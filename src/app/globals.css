@@ -709,7 +709,7 @@ textarea {
     padding: 14px;
   }
 
-  .desktop-right-sidebar h2 {
+.desktop-right-sidebar h2 {
     margin: 8px 0 0;
     font-size: 1rem;
     font-weight: 500;
@@ -762,4 +762,167 @@ textarea {
     min-height: 100vh;
     border-radius: 0;
   }
+
+  .recording-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .recording-actions .sidebar-command {
+    width: 100%;
+  }
+
+  .recording-toggle {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.74rem;
+  }
+
+  .recording-status {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel-soft);
+    padding: 8px;
+  }
+
+  .recording-status > span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+
+  .recording-status > span.is-live {
+    background: var(--danger);
+    animation: recording-pulse 1.2s ease-in-out infinite;
+  }
+
+  .recording-status strong {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recording-status button,
+  .recording-row-actions button,
+  .recording-row-actions a,
+  .recording-fallback button {
+    min-height: 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    color: var(--text);
+    padding: 0 9px;
+    text-decoration: none;
+  }
+
+  .recording-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .recording-list > p,
+  .recording-row p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.76rem;
+    line-height: 1.45;
+  }
+
+  .recording-row {
+    display: grid;
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+  }
+
+  .recording-row strong,
+  .recording-row span {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recording-row strong {
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+
+  .recording-row span {
+    color: var(--muted);
+    font-size: 0.68rem;
+    margin-top: 3px;
+  }
+
+  .recording-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  @keyframes recording-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+}
+
+.recording-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 24%);
+  padding: 16px;
+}
+
+.recording-fallback section {
+  width: min(100%, 380px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+  padding: 18px;
+}
+
+.recording-fallback h2 {
+  margin: 8px 0 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.recording-fallback p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.recording-fallback div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.recording-fallback button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--text);
+  padding: 0 12px;
 }
