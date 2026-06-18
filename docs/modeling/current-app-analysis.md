@@ -10,7 +10,7 @@ Source inspected: `/Users/raimundomena/Local/projects/libt`.
 - Custom auth with `users` and `sessions`.
 - Server actions and API routes.
 - OpenAI audio transcription.
-- OpenRouter for summaries, meeting task extraction, and the in-app agent.
+- OpenAI for summaries, meeting task extraction, and the in-app agent.
 - Google Calendar OAuth and event CRUD.
 - Playwright for UI tests.
 
@@ -62,4 +62,3 @@ This forces fragile code paths:
 ## Rewrite Constraint
 
 The rewrite should preserve feature parity, not preserve the old table boundaries.
-

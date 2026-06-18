@@ -13,7 +13,7 @@ const cspValue = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.openai.com https://openrouter.ai https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com ws: wss:",
+  "connect-src 'self' https://api.openai.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com ws: wss:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self' https://accounts.google.com",
@@ -60,4 +60,3 @@ const nextConfig: NextConfig = {
 }
 
 export default nextConfig
-

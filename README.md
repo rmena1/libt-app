@@ -15,7 +15,7 @@ This repo intentionally starts model-first. The current app grew from daily note
 - Drizzle ORM with PostgreSQL
 - Zero sync
 - Custom auth/session model
-- OpenAI transcription and OpenRouter agent/summary calls
+- OpenAI transcription, agent, and summary calls
 - Google Calendar integration
 - Playwright
 
