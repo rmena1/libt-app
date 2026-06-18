@@ -292,6 +292,8 @@ export const meetingRecordings = pgTable('meeting_recordings', {
   summary: jsonb('summary').$type<MeetingSummaryPayload | VideoSummaryPayload>(),
   errorMessage: text('error_message'),
   visibleBlockId: text('visible_block_id').references(() => blocks.id, { onDelete: 'set null' }),
+  processingStep: text('processing_step'),
+  processingProgress: integer('processing_progress').notNull().default(0),
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
@@ -300,6 +302,7 @@ export const meetingRecordings = pgTable('meeting_recordings', {
   index('idx_meeting_recordings_user_status').on(table.userId, table.status),
   check('meeting_recordings_daily_date_check', sql`${table.dailyDate} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
   check('meeting_recordings_started_at_time_check', sql`${table.startedAtTime} IS NULL OR ${table.startedAtTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  check('meeting_recordings_processing_progress_check', sql`${table.processingProgress} >= 0 AND ${table.processingProgress} <= 100`),
 ])
 
 export const audioBackups = pgTable('audio_backups', {
@@ -340,9 +343,12 @@ export const recordingUploadSessions = pgTable('recording_upload_sessions', {
   originalFileName: text('original_file_name'),
   contentType: text('content_type'),
   errorMessage: text('error_message'),
+  processingStep: text('processing_step'),
+  processingProgress: integer('processing_progress').notNull().default(0),
   createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
 }, (table) => [
+  unique('recording_upload_sessions_id_user_id_unique').on(table.id, table.userId),
   index('idx_recording_upload_sessions_user_created').on(table.userId, table.createdAt),
   index('idx_recording_upload_sessions_recording').on(table.recordingId),
   check('recording_upload_sessions_total_chunks_check', sql`${table.totalChunks} > 0`),
@@ -350,10 +356,30 @@ export const recordingUploadSessions = pgTable('recording_upload_sessions', {
   check('recording_upload_sessions_size_bytes_check', sql`${table.sizeBytes} >= 0`),
   check('recording_upload_sessions_daily_date_check', sql`${table.dailyDate} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
   check('recording_upload_sessions_started_at_time_check', sql`${table.startedAtTime} IS NULL OR ${table.startedAtTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  check('recording_upload_sessions_processing_progress_check', sql`${table.processingProgress} >= 0 AND ${table.processingProgress} <= 100`),
   foreignKey({
     name: 'recording_upload_sessions_recording_same_user_fk',
     columns: [table.recordingId, table.userId],
     foreignColumns: [meetingRecordings.id, meetingRecordings.userId],
+  }).onDelete('cascade'),
+])
+
+export const recordingUploadChunks = pgTable('recording_upload_chunks', {
+  uploadId: text('upload_id').notNull(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  chunkIndex: integer('chunk_index').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+}, (table) => [
+  primaryKey({ columns: [table.uploadId, table.chunkIndex] }),
+  index('idx_recording_upload_chunks_user_upload').on(table.userId, table.uploadId),
+  check('recording_upload_chunks_index_check', sql`${table.chunkIndex} >= 0`),
+  check('recording_upload_chunks_size_bytes_check', sql`${table.sizeBytes} > 0`),
+  foreignKey({
+    name: 'recording_upload_chunks_session_same_user_fk',
+    columns: [table.uploadId, table.userId],
+    foreignColumns: [recordingUploadSessions.id, recordingUploadSessions.userId],
   }).onDelete('cascade'),
 ])
 
@@ -412,3 +438,5 @@ export type AudioBackup = typeof audioBackups.$inferSelect
 export type NewAudioBackup = typeof audioBackups.$inferInsert
 export type RecordingUploadSession = typeof recordingUploadSessions.$inferSelect
 export type NewRecordingUploadSession = typeof recordingUploadSessions.$inferInsert
+export type RecordingUploadChunk = typeof recordingUploadChunks.$inferSelect
+export type NewRecordingUploadChunk = typeof recordingUploadChunks.$inferInsert

@@ -9,9 +9,9 @@ import {
   getUploadSessionForUser,
   markUploadSessionProcessing,
   processRecordingFromPath,
+  updateUploadJobProgress,
 } from '@/lib/recordings/service'
 import { cleanupDir, getChunkPath, getUploadDir, isValidUploadId, TranscriptionError } from '@/lib/recordings/transcribe'
-import { createJob, updateJob } from '../job-store'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 600
@@ -46,9 +46,8 @@ export async function POST(request: NextRequest) {
       totalChunks,
     })
 
-    const job = createJob(uploadId, { userId: session.id, recordingId: upload.recordingId })
     processInBackground({
-      jobId: job.id,
+      jobId: uploadId,
       uploadDir: getUploadDir(uploadId),
       userId: session.id,
     })
@@ -56,7 +55,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       status: 'processing',
-      jobId: job.id,
+      jobId: uploadId,
       recordingId: upload.recordingId,
     })
   } catch (error) {
@@ -74,7 +73,7 @@ async function processInBackground(input: {
     const upload = await getUploadSessionForUser(input.userId, input.jobId)
     if (!upload) throw new Error('Upload session not found')
 
-    updateJob(input.jobId, { step: 'reassembling', progress: 5 })
+    await updateUploadJobProgress({ userId: input.userId, uploadId: input.jobId, step: 'reassembling', progress: 5 })
     const reassembledPath = join(input.uploadDir, 'reassembled.webm')
     const output = await open(reassembledPath, 'w')
 
@@ -94,8 +93,8 @@ async function processInBackground(input: {
     }
 
     const info = await stat(reassembledPath)
-    updateJob(input.jobId, { step: 'processing', progress: 10 })
-    const recording = await processRecordingFromPath({
+    await updateUploadJobProgress({ userId: input.userId, uploadId: input.jobId, step: 'processing', progress: 10 })
+    await processRecordingFromPath({
       inputPath: reassembledPath,
       inputSize: info.size,
       userId: input.userId,
@@ -106,22 +105,18 @@ async function processInBackground(input: {
       contentType: upload.contentType,
       recordingId: upload.recordingId,
       tempChunkDir: join(input.uploadDir, 'transcribe_chunks'),
-      onProgress: (step, progress) => updateJob(input.jobId, { step, progress }),
+      onProgress: (step, progress) => {
+        updateUploadJobProgress({ userId: input.userId, uploadId: input.jobId, step, progress }).catch(() => undefined)
+      },
     })
 
     await completeUploadSession(input.userId, input.jobId)
-    updateJob(input.jobId, {
-      status: 'done',
-      step: 'complete',
-      progress: 100,
-      recordingId: recording.id,
-    })
+    await updateUploadJobProgress({ userId: input.userId, uploadId: input.jobId, step: 'complete', progress: 100 })
   } catch (error) {
     const message = error instanceof TranscriptionError || error instanceof Error
       ? error.message
       : 'Processing failed'
     await failUploadSession(input.userId, input.jobId, message).catch(() => undefined)
-    updateJob(input.jobId, { status: 'error', error: message, step: 'failed' })
   } finally {
     await cleanupDir(input.uploadDir)
   }

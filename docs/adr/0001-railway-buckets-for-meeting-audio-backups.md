@@ -4,4 +4,4 @@ Meeting transcriptions need recoverable audio so failed transcription, summary g
 
 ## Consequences
 
-The app depends on Railway bucket variables (`BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`, and `ENDPOINT`) in production. Local development can run without bucket storage, but server-side retry from archived audio only works when bucket storage is configured.
+The app prefers app-scoped bucket variables (`AUDIO_BUCKET_NAME`, `AUDIO_BUCKET_ACCESS_KEY_ID`, `AUDIO_BUCKET_SECRET_ACCESS_KEY`, `AUDIO_BUCKET_REGION`, and `AUDIO_BUCKET_ENDPOINT`) in production. Railway's short bucket variables (`BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`, and `ENDPOINT`) remain supported as a complete fallback set. Local development can run without bucket storage, but server-side retry from archived audio only works when bucket storage is configured.

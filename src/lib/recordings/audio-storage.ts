@@ -28,11 +28,30 @@ export interface ArchiveAudioInput {
 }
 
 function getBucketConfig() {
-  const bucketName = process.env.BUCKET?.trim() || process.env.AUDIO_BUCKET_NAME?.trim()
-  const endpoint = process.env.ENDPOINT?.trim() || process.env.AUDIO_BUCKET_ENDPOINT?.trim()
-  const region = process.env.REGION?.trim() || process.env.AUDIO_BUCKET_REGION?.trim() || 'auto'
-  const accessKeyId = process.env.ACCESS_KEY_ID?.trim() || process.env.AUDIO_BUCKET_ACCESS_KEY_ID?.trim()
-  const secretAccessKey = process.env.SECRET_ACCESS_KEY?.trim() || process.env.AUDIO_BUCKET_SECRET_ACCESS_KEY?.trim()
+  const scopedConfig = {
+    bucketName: process.env.AUDIO_BUCKET_NAME?.trim(),
+    endpoint: process.env.AUDIO_BUCKET_ENDPOINT?.trim(),
+    region: process.env.AUDIO_BUCKET_REGION?.trim() || 'auto',
+    accessKeyId: process.env.AUDIO_BUCKET_ACCESS_KEY_ID?.trim(),
+    secretAccessKey: process.env.AUDIO_BUCKET_SECRET_ACCESS_KEY?.trim(),
+  }
+  const railwayConfig = {
+    bucketName: process.env.BUCKET?.trim(),
+    endpoint: process.env.ENDPOINT?.trim(),
+    region: process.env.REGION?.trim() || 'auto',
+    accessKeyId: process.env.ACCESS_KEY_ID?.trim(),
+    secretAccessKey: process.env.SECRET_ACCESS_KEY?.trim(),
+  }
+  const hasScopedConfig = Boolean(
+    scopedConfig.bucketName ||
+    scopedConfig.endpoint ||
+    process.env.AUDIO_BUCKET_REGION?.trim() ||
+    scopedConfig.accessKeyId ||
+    scopedConfig.secretAccessKey,
+  )
+  const { bucketName, endpoint, region, accessKeyId, secretAccessKey } = hasScopedConfig
+    ? scopedConfig
+    : railwayConfig
 
   if (!bucketName || !endpoint || !accessKeyId || !secretAccessKey) return null
 

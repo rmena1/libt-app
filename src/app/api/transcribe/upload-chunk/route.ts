@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, rename, unlink } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { NextRequest, NextResponse } from 'next/server'
@@ -64,9 +64,15 @@ export async function POST(request: NextRequest) {
 
     await mkdir(getUploadDir(uploadId), { recursive: true })
     const chunkPath = getChunkPath(uploadId, chunkIndex)
-    const previousInfo = await stat(chunkPath).catch(() => null)
+    const tempChunkPath = `${chunkPath}.${crypto.randomUUID()}.tmp`
 
-    await pipeline(Readable.fromWeb(chunk.stream() as never), createWriteStream(chunkPath))
+    try {
+      await pipeline(Readable.fromWeb(chunk.stream() as never), createWriteStream(tempChunkPath))
+      await rename(tempChunkPath, chunkPath)
+    } catch (error) {
+      await unlink(tempChunkPath).catch(() => undefined)
+      throw error
+    }
 
     await recordUploadedChunk({
       userId: session.id,
@@ -74,7 +80,6 @@ export async function POST(request: NextRequest) {
       chunkIndex,
       totalChunks,
       chunkSize: chunk.size,
-      previousChunkSize: previousInfo?.size ?? null,
     })
 
     return NextResponse.json({ success: true, chunkIndex })

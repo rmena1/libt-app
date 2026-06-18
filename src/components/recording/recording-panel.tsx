@@ -12,6 +12,7 @@ interface RecordingRow {
   title: string | null
   errorMessage: string | null
   createdAt: number
+  hasAudioBackup: boolean
 }
 
 export function RecordingPanel({ focusedDate }: { focusedDate: string }) {
@@ -148,6 +149,7 @@ function RecordingListItem(props: {
       const response = await fetch(`/api/transcriptions/${recording.id}/retry`, { method: 'POST' })
       const data = await response.json().catch(() => null)
       if (!response.ok || !data?.success) throw new Error(data?.error || 'Retry failed')
+      if (data.jobId) await pollJob(data.jobId)
       props.onRetryDone()
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'No se pudo reintentar')
@@ -164,12 +166,14 @@ function RecordingListItem(props: {
       </div>
       {recording.errorMessage && <p>{recording.errorMessage}</p>}
       <div className="recording-row-actions">
-        {recording.status === 'failed' && (
+        {recording.status === 'failed' && recording.hasAudioBackup && (
           <button type="button" onClick={retry} disabled={isRetrying}>
             {isRetrying ? '...' : 'Retry'}
           </button>
         )}
-        <a href={`/api/transcriptions/${recording.id}/audio`} target="_blank" rel="noreferrer">Audio</a>
+        {recording.hasAudioBackup && (
+          <a href={`/api/transcriptions/${recording.id}/audio`} target="_blank" rel="noreferrer">Audio</a>
+        )}
       </div>
     </article>
   )
@@ -192,4 +196,15 @@ function formatDuration(seconds: number) {
   const mins = Math.floor(seconds / 60).toString().padStart(2, '0')
   const secs = (seconds % 60).toString().padStart(2, '0')
   return `${mins}:${secs}`
+}
+
+async function pollJob(jobId: string) {
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    const response = await fetch(`/api/transcribe/status?jobId=${encodeURIComponent(jobId)}`)
+    const data = await response.json().catch(() => null)
+    if (!response.ok || !data?.success) throw new Error(data?.error || 'Could not read retry status')
+    if (data.job.status === 'done') return
+    if (data.job.status === 'error') throw new Error(data.job.error || 'Retry failed')
+  }
 }
