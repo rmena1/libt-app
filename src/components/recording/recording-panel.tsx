@@ -15,6 +15,8 @@ interface RecordingRow {
   hasAudioBackup: boolean
 }
 
+const RETRY_POLL_TIMEOUT_MS = 20 * 60 * 1000
+
 export function RecordingPanel({ focusedDate }: { focusedDate: string }) {
   const {
     isRecording,
@@ -199,7 +201,9 @@ function formatDuration(seconds: number) {
 }
 
 async function pollJob(jobId: string) {
-  for (;;) {
+  const deadline = Date.now() + RETRY_POLL_TIMEOUT_MS
+
+  while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 2000))
     const response = await fetch(`/api/transcribe/status?jobId=${encodeURIComponent(jobId)}`)
     const data = await response.json().catch(() => null)
@@ -207,4 +211,6 @@ async function pollJob(jobId: string) {
     if (data.job.status === 'done') return
     if (data.job.status === 'error') throw new Error(data.job.error || 'Retry failed')
   }
+
+  throw new Error('Timed out waiting for retry result')
 }

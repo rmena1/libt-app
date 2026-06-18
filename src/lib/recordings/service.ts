@@ -40,6 +40,7 @@ import {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 const MAX_UPLOAD_CHUNKS = Math.ceil(DIRECT_UPLOAD_LIMIT_BYTES / CHUNK_SIZE_BYTES)
+const PROCESSING_JOB_STALE_MS = 15 * 60 * 1000
 
 export async function createProcessingRecording(input: {
   userId: string
@@ -340,6 +341,20 @@ export async function getPersistentUploadJob(userId: string, uploadId: string) {
     }
   }
 
+  if (isStaleProcessingState(upload.updatedAt)) {
+    const message = 'Processing timed out. Please retry the transcription.'
+    await failUploadSession(userId, upload.id, message)
+    return {
+      id: upload.id,
+      status: 'error' as const,
+      step: 'failed',
+      progress: 100,
+      recordingId: upload.recordingId,
+      error: message,
+      updatedAt: nowMs(),
+    }
+  }
+
   return {
     id: upload.id,
     status: 'processing' as const,
@@ -390,6 +405,20 @@ export async function getPersistentRecordingJob(userId: string, recordingId: str
       recordingId: recording.id,
       error: recording.errorMessage ?? 'Processing failed',
       updatedAt: recording.updatedAt,
+    }
+  }
+
+  if (isStaleProcessingState(recording.updatedAt)) {
+    const message = 'Processing timed out. Please retry the transcription.'
+    await failRecording(userId, recording.id, message)
+    return {
+      id: recording.id,
+      status: 'error' as const,
+      step: 'failed',
+      progress: 100,
+      recordingId: recording.id,
+      error: message,
+      updatedAt: nowMs(),
     }
   }
 
@@ -645,6 +674,7 @@ async function saveRecordingBlocks(input: {
   summary: Awaited<ReturnType<typeof generateRecordingSummary>>
 }) {
   return db.transaction(async (tx) => {
+    await lockByKeyForTx(tx, `recording-blocks:${input.userId}:${input.dailyDate}`)
     const daily = await getOrCreateDailyBlockForTx(tx, input.userId, input.dailyDate)
     const section = await getOrCreateSectionBlockForTx(tx, {
       userId: input.userId,
@@ -736,6 +766,8 @@ async function insertBlockForTx(tx: Tx, input: {
   parent: Block
   content: string
 }) {
+  await lockByKeyForTx(tx, `blocks-parent:${input.userId}:${input.parent.id}`)
+
   const [lastSibling] = await tx
     .select({ position: blocks.position })
     .from(blocks)
@@ -812,6 +844,14 @@ async function findRecordingForTx(tx: Tx, userId: string, recordingId: string) {
 
   if (!recording) throw new Error('Recording not found')
   return recording
+}
+
+async function lockByKeyForTx(tx: Tx, key: string) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${key})::bigint)`)
+}
+
+function isStaleProcessingState(updatedAt: number) {
+  return nowMs() - updatedAt > PROCESSING_JOB_STALE_MS
 }
 
 function clampProgress(progress: number) {
