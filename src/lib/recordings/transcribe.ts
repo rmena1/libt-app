@@ -9,7 +9,7 @@ import { basename, extname, join } from 'node:path'
 const require = createRequire(import.meta.url)
 
 export const DIRECT_UPLOAD_LIMIT_BYTES = 500 * 1024 * 1024
-export const CHUNK_SIZE_BYTES = 20 * 1024 * 1024
+export const CHUNK_SIZE_BYTES = 8 * 1024 * 1024
 export const WHISPER_MAX_SIZE = 24 * 1024 * 1024
 export const AUDIO_SEGMENT_SECONDS = 600
 export const MAX_TRANSCRIBE_CONCURRENCY = 3

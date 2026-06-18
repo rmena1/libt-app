@@ -27,7 +27,7 @@ const RecordingContext = createContext<RecordingState | null>(null)
 
 const CHUNK_INTERVAL_MS = 30_000
 const MAX_CHUNKS_IN_MEMORY = 20
-const CHUNK_SIZE_BYTES = 20 * 1024 * 1024
+const CHUNK_SIZE_BYTES = 8 * 1024 * 1024
 const UPLOAD_TIMEOUT_MS = 60 * 60 * 1000
 const MAX_CHUNK_UPLOAD_RETRIES = 3
 
