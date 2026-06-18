@@ -16,6 +16,10 @@ _Avoid_: Separate page types
 A basic block whose content is ordinary note text. Meeting and video transcriptions are stored as text blocks unless a future feature needs a separate recording artifact.
 _Avoid_: Note page, meeting page
 
+**Meeting Recording**:
+A technical artifact for the capture and processing lifecycle of a meeting or video recording. It may track processing state, retry information, raw transcript text, model-generated summary data, audio backup metadata, and the block where the visible meeting notes were written. The user-authored meeting notes remain blocks; the recording artifact exists for reliability and recovery, not as a second authored-content source.
+_Avoid_: Meeting page, transcription document, alternate note source
+
 **Daily Block**:
 A root block representing one calendar day for a user. Daily blocks are the only root blocks; every other block belongs to exactly one daily block through its parent chain.
 _Avoid_: Daily page, daily document

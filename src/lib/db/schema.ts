@@ -23,6 +23,10 @@ export const todoPriority = pgEnum('todo_priority', ['low', 'medium', 'high'])
 export const todoRecurrence = pgEnum('todo_recurrence', ['weekly', 'monthly', 'yearly'])
 export const todoStatus = pgEnum('todo_status', ['pending', 'completed', 'canceled'])
 export const aiMessageRole = pgEnum('ai_message_role', ['user', 'assistant', 'tool', 'system'])
+export const meetingRecordingMode = pgEnum('meeting_recording_mode', ['mic', 'meeting', 'video', 'file'])
+export const meetingRecordingStatus = pgEnum('meeting_recording_status', ['processing', 'completed', 'failed'])
+export const audioBackupStatus = pgEnum('audio_backup_status', ['archived', 'transcribed', 'transcription_failed'])
+export const recordingUploadStatus = pgEnum('recording_upload_status', ['uploading', 'processing', 'completed', 'failed'])
 
 export const agentModels = pgTable('agent_models', {
   id: text('id').primaryKey(),
@@ -258,6 +262,127 @@ export const dailyReviewActivityQueue = pgTable('daily_review_activity_queue', {
   index('idx_daily_review_activity_queue_updated').on(table.updatedAt),
 ])
 
+export type MeetingSummaryPayload = {
+  titulo: string
+  puntos_clave: string[]
+  decisiones: string[]
+  datos_clave: string[]
+  accionables: string[]
+  temas_abiertos: string[]
+  contexto: string
+  resumen: string
+}
+
+export type VideoSummaryPayload = {
+  titulo: string
+  resumen_corto: string
+  resumen_completo: string
+  puntos_clave: string[]
+}
+
+export const meetingRecordings = pgTable('meeting_recordings', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mode: meetingRecordingMode('mode').notNull(),
+  status: meetingRecordingStatus('status').notNull().default('processing'),
+  dailyDate: text('daily_date').notNull(),
+  startedAtTime: text('started_at_time'),
+  title: text('title'),
+  transcript: text('transcript'),
+  summary: jsonb('summary').$type<MeetingSummaryPayload | VideoSummaryPayload>(),
+  errorMessage: text('error_message'),
+  visibleBlockId: text('visible_block_id').references(() => blocks.id, { onDelete: 'set null' }),
+  processingStep: text('processing_step'),
+  processingProgress: integer('processing_progress').notNull().default(0),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+}, (table) => [
+  unique('meeting_recordings_id_user_id_unique').on(table.id, table.userId),
+  index('idx_meeting_recordings_user_created').on(table.userId, table.createdAt),
+  index('idx_meeting_recordings_user_status').on(table.userId, table.status),
+  check('meeting_recordings_daily_date_check', sql`${table.dailyDate} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
+  check('meeting_recordings_started_at_time_check', sql`${table.startedAtTime} IS NULL OR ${table.startedAtTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  check('meeting_recordings_processing_progress_check', sql`${table.processingProgress} >= 0 AND ${table.processingProgress} <= 100`),
+])
+
+export const audioBackups = pgTable('audio_backups', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  recordingId: text('recording_id'),
+  bucketName: text('bucket_name').notNull(),
+  objectKey: text('object_key').notNull().unique(),
+  originalFileName: text('original_file_name').notNull(),
+  contentType: text('content_type'),
+  sizeBytes: integer('size_bytes').notNull(),
+  source: meetingRecordingMode('source').notNull(),
+  status: audioBackupStatus('status').notNull().default('archived'),
+  errorMessage: text('error_message'),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+}, (table) => [
+  index('idx_audio_backups_user_created').on(table.userId, table.createdAt),
+  index('idx_audio_backups_recording').on(table.recordingId),
+  foreignKey({
+    name: 'audio_backups_recording_same_user_fk',
+    columns: [table.recordingId, table.userId],
+    foreignColumns: [meetingRecordings.id, meetingRecordings.userId],
+  }).onDelete('cascade'),
+])
+
+export const recordingUploadSessions = pgTable('recording_upload_sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  recordingId: text('recording_id').notNull(),
+  status: recordingUploadStatus('status').notNull().default('uploading'),
+  mode: meetingRecordingMode('mode').notNull(),
+  dailyDate: text('daily_date').notNull(),
+  startedAtTime: text('started_at_time'),
+  totalChunks: integer('total_chunks').notNull(),
+  uploadedChunks: integer('uploaded_chunks').notNull().default(0),
+  sizeBytes: integer('size_bytes').notNull().default(0),
+  originalFileName: text('original_file_name'),
+  contentType: text('content_type'),
+  errorMessage: text('error_message'),
+  processingStep: text('processing_step'),
+  processingProgress: integer('processing_progress').notNull().default(0),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+}, (table) => [
+  unique('recording_upload_sessions_id_user_id_unique').on(table.id, table.userId),
+  index('idx_recording_upload_sessions_user_created').on(table.userId, table.createdAt),
+  index('idx_recording_upload_sessions_recording').on(table.recordingId),
+  check('recording_upload_sessions_total_chunks_check', sql`${table.totalChunks} > 0`),
+  check('recording_upload_sessions_uploaded_chunks_check', sql`${table.uploadedChunks} >= 0 AND ${table.uploadedChunks} <= ${table.totalChunks}`),
+  check('recording_upload_sessions_size_bytes_check', sql`${table.sizeBytes} >= 0`),
+  check('recording_upload_sessions_daily_date_check', sql`${table.dailyDate} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`),
+  check('recording_upload_sessions_started_at_time_check', sql`${table.startedAtTime} IS NULL OR ${table.startedAtTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  check('recording_upload_sessions_processing_progress_check', sql`${table.processingProgress} >= 0 AND ${table.processingProgress} <= 100`),
+  foreignKey({
+    name: 'recording_upload_sessions_recording_same_user_fk',
+    columns: [table.recordingId, table.userId],
+    foreignColumns: [meetingRecordings.id, meetingRecordings.userId],
+  }).onDelete('cascade'),
+])
+
+export const recordingUploadChunks = pgTable('recording_upload_chunks', {
+  uploadId: text('upload_id').notNull(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  chunkIndex: integer('chunk_index').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull().$defaultFn(nowMs),
+}, (table) => [
+  primaryKey({ columns: [table.uploadId, table.chunkIndex] }),
+  index('idx_recording_upload_chunks_user_upload').on(table.userId, table.uploadId),
+  check('recording_upload_chunks_index_check', sql`${table.chunkIndex} >= 0`),
+  check('recording_upload_chunks_size_bytes_check', sql`${table.sizeBytes} > 0`),
+  foreignKey({
+    name: 'recording_upload_chunks_session_same_user_fk',
+    columns: [table.uploadId, table.userId],
+    foreignColumns: [recordingUploadSessions.id, recordingUploadSessions.userId],
+  }).onDelete('cascade'),
+])
+
 export const agentConversations = pgTable('agent_conversations', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -307,3 +432,11 @@ export type BlockFolderAssignment = typeof blockFolderAssignments.$inferSelect
 export type NewBlockFolderAssignment = typeof blockFolderAssignments.$inferInsert
 export type CalendarEventLink = typeof calendarEventLinks.$inferSelect
 export type NewCalendarEventLink = typeof calendarEventLinks.$inferInsert
+export type MeetingRecording = typeof meetingRecordings.$inferSelect
+export type NewMeetingRecording = typeof meetingRecordings.$inferInsert
+export type AudioBackup = typeof audioBackups.$inferSelect
+export type NewAudioBackup = typeof audioBackups.$inferInsert
+export type RecordingUploadSession = typeof recordingUploadSessions.$inferSelect
+export type NewRecordingUploadSession = typeof recordingUploadSessions.$inferInsert
+export type RecordingUploadChunk = typeof recordingUploadChunks.$inferSelect
+export type NewRecordingUploadChunk = typeof recordingUploadChunks.$inferInsert

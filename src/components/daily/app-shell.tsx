@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { IsoDate } from '@/lib/blocks'
 import { LogoutButton } from '@/app/logout-button'
 import { centeredDateWindow, todayIso } from '@/lib/daily/timeline'
+import { RecordingPanel } from '@/components/recording/recording-panel'
 import { formatMonth, monthCalendarDates, sameMonth, weekdayShort } from './view-model'
 
 export function DesktopSidebar({ userEmail }: { userEmail: string }) {
@@ -81,6 +82,7 @@ export function DesktopRightSidebar(props: {
         <p className="eyebrow">IA</p>
         <button type="button" className="sidebar-command" onClick={props.onOpenAi}>Abrir asistente</button>
       </section>
+      <RecordingPanel focusedDate={props.focusedDate} />
     </aside>
   )
 }
