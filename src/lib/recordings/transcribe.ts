@@ -10,7 +10,6 @@ const require = createRequire(import.meta.url)
 
 export const DIRECT_UPLOAD_LIMIT_BYTES = 500 * 1024 * 1024
 export const CHUNK_SIZE_BYTES = 8 * 1024 * 1024
-export const WHISPER_MAX_SIZE = 24 * 1024 * 1024
 export const AUDIO_SEGMENT_SECONDS = 600
 export const MAX_TRANSCRIBE_CONCURRENCY = 3
 export const TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe'
@@ -129,6 +128,9 @@ async function splitAudioFile(inputPath: string, outputDir: string, inputSize: n
     'error',
     '-i',
     inputPath,
+    '-map',
+    '0:a:0',
+    '-vn',
     '-f',
     'segment',
     '-segment_time',
@@ -251,22 +253,18 @@ export async function transcribeAudioPath(input: {
 
   let chunkDir = input.tempChunkDir
   try {
-    if (input.inputSize <= WHISPER_MAX_SIZE) {
-      input.onProgress?.('transcribing', 20)
-      const text = await transcribeFileWithRetry({ filePath: input.inputPath, apiKey })
-      input.onProgress?.('transcribed', 70)
-      return assertTranscript(text)
-    }
-
     chunkDir ??= await createTempChunkDir()
     input.onProgress?.('splitting', 10)
     const chunks = await splitAudioFile(input.inputPath, chunkDir, input.inputSize)
+    if (chunks.length === 0) throw new TranscriptionError('Audio processing produced no segments', 500)
+
     input.onProgress?.('transcribing', 20)
     const parts = await transcribeChunksParallel({
       chunkPaths: chunks,
       apiKey,
       onProgress: (done, total) => input.onProgress?.('transcribing', 20 + Math.round((done / total) * 50)),
     })
+    input.onProgress?.('transcribed', 70)
 
     return assertTranscript(parts.filter(Boolean).join(' '))
   } finally {

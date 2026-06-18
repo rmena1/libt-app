@@ -12,6 +12,7 @@ import {
 } from '@/lib/daily/timeline'
 import type { IsoDate } from '@/lib/blocks'
 import { positionForIndex } from '@/lib/blocks/position'
+import { RECORDING_COMPLETED_EVENT, type RecordingCompletedDetail } from '@/lib/recordings/client-events'
 import type { CreateBlockInput, DailyRecord, PatchBlockOptions, TimelineBlock } from './types'
 
 const INITIAL_WINDOW_RADIUS_DAYS = 45
@@ -43,17 +44,17 @@ export function useDailyTimeline() {
 
   const datesWithBlocks = useMemo(() => new Set(records.map((record) => record.date)), [records])
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (bounds: DateWindowBounds = windowBoundsRef.current) => {
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/daily/range?startDate=${dateWindow.startDate}&endDate=${dateWindow.endDate}`)
+      const response = await fetch(`/api/daily/range?startDate=${bounds.startDate}&endDate=${bounds.endDate}`)
       if (!response.ok) throw new Error('No se pudo cargar Daily')
       const payload = await response.json() as { records: DailyRecord[] }
       setRecords(payload.records)
     } finally {
       setIsLoading(false)
     }
-  }, [dateWindow.endDate, dateWindow.startDate])
+  }, [])
 
   const applyOptimisticCreateBlock = useCallback((input: CreateBlockInput & { id: string }) => {
     const now = Date.now()
@@ -125,8 +126,11 @@ export function useDailyTimeline() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    refresh().catch(() => {})
-  }, [refresh])
+    refresh({
+      startDate: dateWindow.startDate,
+      endDate: dateWindow.endDate,
+    }).catch(() => {})
+  }, [dateWindow.endDate, dateWindow.startDate, refresh])
 
   useEffect(() => {
     windowBoundsRef.current = windowBounds
@@ -211,7 +215,7 @@ export function useDailyTimeline() {
 
   const ensureDateIsRendered = useCallback((date: IsoDate) => {
     const current = windowBoundsRef.current
-    if (date >= current.startDate && date <= current.endDate) return
+    if (date >= current.startDate && date <= current.endDate) return current
 
     const next = boundedDateWindowForFocus({
       ...current,
@@ -223,7 +227,23 @@ export function useDailyTimeline() {
 
     windowBoundsRef.current = next
     setWindowBounds(next)
+    return next
   }, [])
+
+  useEffect(() => {
+    const handleRecordingCompleted = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as RecordingCompletedDetail | null
+        : null
+      if (!detail?.dailyDate) return
+
+      const bounds = ensureDateIsRendered(detail.dailyDate as IsoDate)
+      refresh(bounds).catch(() => {})
+    }
+
+    window.addEventListener(RECORDING_COMPLETED_EVENT, handleRecordingCompleted)
+    return () => window.removeEventListener(RECORDING_COMPLETED_EVENT, handleRecordingCompleted)
+  }, [ensureDateIsRendered, refresh])
 
   const navigateToDate = useCallback((date: string) => {
     const isoDate = date as IsoDate

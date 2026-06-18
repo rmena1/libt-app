@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
+import { RECORDING_COMPLETED_EVENT, type RecordingCompletedDetail } from '@/lib/recordings/client-events'
 
 export type RecordingMode = 'mic' | 'meeting' | 'video'
 
@@ -139,12 +140,13 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
 
       try {
         if (!activeMode || !targetDate) throw new Error('Recording state was lost')
-        await uploadAudio(finalBlob, {
+        const result = await uploadAudio(finalBlob, {
           mode: activeMode,
           dailyDate: targetDate,
           startedAtTime,
         }, setUploadProgress)
         refreshRecordings()
+        notifyRecordingCompleted({ dailyDate: targetDate, recordingId: result.recordingId })
       } catch (error) {
         offerDownload(finalBlob)
         window.alert(`No se pudo subir el audio. Dejé una descarga de respaldo.\n\n${error instanceof Error ? error.message : 'Error desconocido'}`)
@@ -251,8 +253,9 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     setIsTranscribing(true)
     setUploadProgress(0)
     try {
-      await uploadAudio(file, { mode: 'file', dailyDate, startedAtTime: null }, setUploadProgress)
+      const result = await uploadAudio(file, { mode: 'file', dailyDate, startedAtTime: null }, setUploadProgress)
       refreshRecordings()
+      notifyRecordingCompleted({ dailyDate, recordingId: result.recordingId })
     } finally {
       setIsTranscribing(false)
       setUploadProgress(0)
@@ -309,10 +312,9 @@ async function uploadAudio(blob: Blob, meta: {
   startedAtTime: string | null
 }, onProgress: (progress: number) => void) {
   if (blob.size <= CHUNK_SIZE_BYTES) {
-    await uploadDirect(blob, meta, onProgress)
-    return
+    return uploadDirect(blob, meta, onProgress)
   }
-  await uploadChunked(blob, meta, onProgress)
+  return uploadChunked(blob, meta, onProgress)
 }
 
 async function uploadDirect(blob: Blob, meta: {
@@ -331,6 +333,7 @@ async function uploadDirect(blob: Blob, meta: {
   const data = await response.json().catch(() => null)
   if (!response.ok || !data?.success) throw new Error(data?.error || 'Transcription failed')
   onProgress(100)
+  return { recordingId: typeof data.recording?.id === 'string' ? data.recording.id : undefined }
 }
 
 async function uploadChunked(blob: Blob, meta: {
@@ -358,7 +361,8 @@ async function uploadChunked(blob: Blob, meta: {
   const response = await postWithTimeout('/api/transcribe/process', form)
   const data = await response.json().catch(() => null)
   if (!response.ok || !data?.success) throw new Error(data?.error || 'Could not process recording')
-  await pollJob(data.jobId, onProgress)
+  const recordingId = await pollJob(data.jobId, onProgress)
+  return { recordingId: recordingId ?? (typeof data.recordingId === 'string' ? data.recordingId : undefined) }
 }
 
 async function uploadChunkWithRetry(
@@ -416,6 +420,10 @@ function offerDownload(blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+function notifyRecordingCompleted(detail: RecordingCompletedDetail) {
+  window.dispatchEvent(new CustomEvent<RecordingCompletedDetail>(RECORDING_COMPLETED_EVENT, { detail }))
+}
+
 async function pollJob(jobId: string, onProgress: (progress: number) => void) {
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, 2000))
@@ -423,7 +431,9 @@ async function pollJob(jobId: string, onProgress: (progress: number) => void) {
     const data = await response.json().catch(() => null)
     if (!response.ok || !data?.success) throw new Error(data?.error || 'Could not read job status')
     onProgress(data.job.progress ?? 90)
-    if (data.job.status === 'done') return
+    if (data.job.status === 'done') {
+      return typeof data.job.recordingId === 'string' ? data.job.recordingId : undefined
+    }
     if (data.job.status === 'error') throw new Error(data.job.error || 'Transcription failed')
   }
 }

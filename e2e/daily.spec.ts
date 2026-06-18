@@ -92,8 +92,6 @@ test.describe('daily view and app shell', () => {
     })
 
     await expect(page.getByTestId('upload-audio-button')).toBeEnabled({ timeout: 15000 })
-    await page.reload()
-    await goToDate(page, today)
 
     await expect.poll(async () => textareaValues(section)).toContain('meetings')
     await expect.poll(async () => textareaValues(section)).toContain('summary')
