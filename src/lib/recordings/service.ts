@@ -19,7 +19,7 @@ import { nowMs } from '@/lib/shared/time'
 import { assertIsoDate, type IsoDate } from '@/lib/blocks/dates'
 import { nextPositionAfter } from '@/lib/blocks/position'
 import { planDailyBlockCreation } from '@/lib/blocks/plans'
-import { archiveAudioFromPath, downloadAudioBackup, markAudioBackupFailed, markAudioBackupTranscribed } from './audio-storage'
+import { archiveAudioFromPath, downloadAudioBackup, getLatestAudioBackup, markAudioBackupFailed, markAudioBackupTranscribed } from './audio-storage'
 import { generateRecordingSummary } from './summary'
 import {
   CHUNK_SIZE_BYTES,
@@ -94,6 +94,11 @@ export async function listRecentRecordings(input: {
       createdAt: meetingRecordings.createdAt,
       updatedAt: meetingRecordings.updatedAt,
       hasAudioBackup: sql<boolean>`exists (
+        select 1 from ${audioBackups}
+        where ${audioBackups.userId} = ${meetingRecordings.userId}
+          and ${audioBackups.recordingId} = ${meetingRecordings.id}
+      )`,
+      canRetryProcessing: sql<boolean>`${meetingRecordings.status} = 'failed' and exists (
         select 1 from ${audioBackups}
         where ${audioBackups.userId} = ${meetingRecordings.userId}
           and ${audioBackups.recordingId} = ${meetingRecordings.id}
@@ -579,6 +584,15 @@ export async function claimRecordingForRetry(input: {
   userId: string
   recordingId: string
 }) {
+  const existing = await getRecordingForUser(input.userId, input.recordingId)
+  if (!existing) throw new Error('Recording not found')
+  if (existing.status === 'completed') throw new Error('Completed recordings cannot be retried')
+  if (existing.status === 'processing') throw new Error('Recording is already processing')
+  if (existing.status !== 'failed') throw new Error(`Recording is ${existing.status}`)
+
+  const backup = await getLatestAudioBackup(input.userId, input.recordingId)
+  if (!backup) throw new Error('No archived audio available for retry')
+
   const now = nowMs()
   const [recording] = await db
     .update(meetingRecordings)
@@ -598,11 +612,7 @@ export async function claimRecordingForRetry(input: {
 
   if (recording) return recording
 
-  const existing = await getRecordingForUser(input.userId, input.recordingId)
-  if (!existing) throw new Error('Recording not found')
-  if (existing.status === 'completed') throw new Error('Completed recordings cannot be retried')
-  if (existing.status === 'processing') throw new Error('Recording is already processing')
-  throw new Error(`Recording is ${existing.status}`)
+  throw new Error('Recording is already processing')
 }
 
 async function markRecordingProcessing(userId: string, recordingId: string): Promise<MeetingRecording> {

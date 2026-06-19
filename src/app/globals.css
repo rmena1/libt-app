@@ -202,7 +202,9 @@ textarea {
 }
 
 .app-icon-button,
+.sidebar-recordings-button,
 .sidebar-command,
+.recording-dialog-header button,
 .ai-panel button,
 .calendar-today-button,
 .day-header-actions button,
@@ -221,6 +223,8 @@ textarea {
 
 .app-icon-button:hover,
 .calendar-today-button:hover,
+.sidebar-recordings-button:hover,
+.recording-dialog-header button:hover,
 .sidebar-command:hover,
 .day-header-actions button:hover {
   border-color: var(--line-strong);
@@ -737,16 +741,108 @@ textarea {
     gap: 8px;
   }
 
-  .desktop-sidebar a {
+  .desktop-sidebar a,
+  .sidebar-recordings-button {
+    display: flex;
+    min-height: 38px;
+    width: 100%;
+    align-items: center;
+    gap: 9px;
     border-radius: var(--radius);
+    border: 0;
+    background: transparent;
     color: var(--text);
     padding: 10px 14px;
     text-decoration: none;
+    text-align: left;
+  }
+
+  .sidebar-recordings-button {
+    font: inherit;
   }
 
   .desktop-sidebar a.is-active,
+  .sidebar-recordings-button[aria-expanded="true"],
+  .sidebar-recordings-button:hover,
   .desktop-sidebar a:hover {
     background: var(--panel-hover);
+  }
+
+  .sidebar-mic-icon {
+    position: relative;
+    width: 14px;
+    min-width: 14px;
+    height: 17px;
+  }
+
+  .sidebar-mic-icon::before {
+    position: absolute;
+    top: 0;
+    left: 3px;
+    width: 8px;
+    height: 11px;
+    border: 1.5px solid var(--text);
+    border-radius: 999px;
+    content: "";
+  }
+
+  .sidebar-mic-icon::after {
+    position: absolute;
+    left: 2px;
+    bottom: 0;
+    width: 10px;
+    height: 7px;
+    border-right: 1.5px solid var(--text);
+    border-bottom: 1.5px solid var(--text);
+    border-left: 1.5px solid var(--text);
+    border-radius: 0 0 8px 8px;
+    content: "";
+  }
+
+  .recording-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(255, 255, 255, 0.48);
+  }
+
+  .recording-dialog {
+    position: fixed;
+    top: 52px;
+    left: 264px;
+    display: flex;
+    width: 340px;
+    height: min(620px, calc(100svh - 80px));
+    flex-direction: column;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    box-shadow: var(--shadow-card);
+    padding: 14px;
+  }
+
+  .recording-dialog-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .recording-dialog-header h2 {
+    margin: 8px 0 0;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  .recording-dialog-header button {
+    min-height: 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    color: var(--text);
+    padding: 0 9px;
   }
 
   .desktop-sidebar p {
@@ -828,11 +924,25 @@ textarea {
     border-radius: 0;
   }
 
+  .recording-panel {
+    display: grid;
+    gap: 16px;
+  }
+
+  .recording-panel-section {
+    display: grid;
+    gap: 10px;
+  }
+
+  .recording-panel-section + .recording-panel-section {
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+
   .recording-actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
-    margin-top: 12px;
   }
 
   .recording-actions .sidebar-command {
@@ -897,7 +1007,6 @@ textarea {
   .recording-list {
     display: grid;
     gap: 8px;
-    margin-top: 14px;
   }
 
   .recording-list > p,

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import type { IsoDate } from '@/lib/blocks'
 import { LogoutButton } from '@/app/logout-button'
@@ -7,7 +8,12 @@ import { centeredDateWindow, todayIso } from '@/lib/daily/timeline'
 import { RecordingPanel } from '@/components/recording/recording-panel'
 import { formatMonth, monthCalendarDates, sameMonth, weekdayShort } from './view-model'
 
-export function DesktopSidebar({ userEmail }: { userEmail: string }) {
+export function DesktopSidebar(props: {
+  focusedDate: IsoDate
+  userEmail: string
+}) {
+  const [isRecordingsOpen, setIsRecordingsOpen] = useState(false)
+
   return (
     <aside className="desktop-sidebar" data-testid="desktop-left-sidebar">
       <div>
@@ -15,14 +21,50 @@ export function DesktopSidebar({ userEmail }: { userEmail: string }) {
         <strong>Blocks</strong>
       </div>
       <nav>
+        <button
+          type="button"
+          className="sidebar-recordings-button"
+          data-testid="open-recordings-button"
+          aria-haspopup="dialog"
+          aria-expanded={isRecordingsOpen}
+          onClick={() => setIsRecordingsOpen((isOpen) => !isOpen)}
+        >
+          <span className="sidebar-mic-icon" aria-hidden="true" />
+          <span>Transcripciones</span>
+        </button>
         <Link className="is-active" href="/">Daily</Link>
         <Link href="/tasks">Todos</Link>
         <Link href="/folders">Folders</Link>
         <Link href="/favorites">Favorites</Link>
         <Link href="/profile">Profile</Link>
       </nav>
-      <p>{userEmail}</p>
+      <p>{props.userEmail}</p>
       <LogoutButton />
+      {isRecordingsOpen && (
+        <div
+          className="recording-dialog-backdrop"
+          data-testid="recording-dialog-backdrop"
+          onMouseDown={() => setIsRecordingsOpen(false)}
+        >
+          <section
+            className="recording-dialog"
+            data-testid="recording-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Transcripciones"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="recording-dialog-header">
+              <div>
+                <p className="eyebrow">Transcripciones</p>
+                <h2>Audio</h2>
+              </div>
+              <button type="button" onClick={() => setIsRecordingsOpen(false)}>Cerrar</button>
+            </div>
+            <RecordingPanel focusedDate={props.focusedDate} />
+          </section>
+        </div>
+      )}
     </aside>
   )
 }
@@ -82,7 +124,6 @@ export function DesktopRightSidebar(props: {
         <p className="eyebrow">IA</p>
         <button type="button" className="sidebar-command" onClick={props.onOpenAi}>Abrir asistente</button>
       </section>
-      <RecordingPanel focusedDate={props.focusedDate} />
     </aside>
   )
 }

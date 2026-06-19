@@ -31,7 +31,7 @@ export function DailyApp({ userEmail }: { userEmail: string }) {
 
   return (
     <div className="libt-layout">
-      <DesktopSidebar userEmail={userEmail} />
+      <DesktopSidebar focusedDate={focusedDate} userEmail={userEmail} />
 
       <main className="daily-main">
         <MobileTimeline

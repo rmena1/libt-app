@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { RECORDING_COMPLETED_EVENT, type RecordingCompletedDetail } from '@/lib/recordings/client-events'
 import { useRecording, type RecordingMode } from './recording-context'
 
 interface RecordingRow {
@@ -13,6 +14,7 @@ interface RecordingRow {
   errorMessage: string | null
   createdAt: number
   hasAudioBackup: boolean
+  canRetryProcessing: boolean
 }
 
 const RETRY_POLL_TIMEOUT_MS = 20 * 60 * 1000
@@ -37,6 +39,17 @@ export function RecordingPanel({ focusedDate }: { focusedDate: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  const refreshRecordings = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/transcribe')
+      const data = await response.json().catch(() => null)
+      if (data?.success) setRecordings(data.recordings)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     fetch('/api/transcribe')
@@ -60,8 +73,7 @@ export function RecordingPanel({ focusedDate }: { focusedDate: string }) {
   }
 
   return (
-    <section data-testid="recording-panel">
-      <p className="eyebrow">Transcripciones</p>
+    <div className="recording-panel" data-testid="recording-panel">
       {(isRecording || isTranscribing) && (
         <div className="recording-status">
           <span className={isRecording ? 'is-live' : ''} />
@@ -76,71 +88,86 @@ export function RecordingPanel({ focusedDate }: { focusedDate: string }) {
         </div>
       )}
 
-      <div className="recording-actions">
-        <button type="button" className="sidebar-command" data-testid="record-meeting-button" disabled={isRecording || isTranscribing} onClick={() => start('meeting')}>
-          Grabar reunión
-        </button>
-        <label className="recording-toggle">
+      <section className="recording-panel-section">
+        <p className="eyebrow">Nueva transcripción</p>
+        <div className="recording-actions">
+          <button type="button" className="sidebar-command" data-testid="record-meeting-button" disabled={isRecording || isTranscribing} onClick={() => start('meeting')}>
+            Grabar reunión
+          </button>
+          <label className="recording-toggle">
+            <input
+              data-testid="meeting-mic-toggle"
+              type="checkbox"
+              checked={meetingMicEnabled}
+              onChange={(event) => setMeetingMicEnabled(event.currentTarget.checked)}
+            />
+            mic
+          </label>
+          <button type="button" className="sidebar-command" data-testid="record-video-button" disabled={isRecording || isTranscribing} onClick={() => start('video')}>
+            Grabar video
+          </button>
+          <label className="recording-toggle">
+            <input
+              data-testid="video-mic-toggle"
+              type="checkbox"
+              checked={videoMicEnabled}
+              onChange={(event) => setVideoMicEnabled(event.currentTarget.checked)}
+            />
+            mic
+          </label>
+          <button type="button" className="sidebar-command" data-testid="record-mic-button" disabled={isRecording || isTranscribing} onClick={() => start('mic')}>
+            Solo mic
+          </button>
+          <button
+            type="button"
+            className="sidebar-command"
+            data-testid="upload-audio-button"
+            disabled={isRecording || isTranscribing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Subir audio
+          </button>
           <input
-            type="checkbox"
-            checked={meetingMicEnabled}
-            onChange={(event) => setMeetingMicEnabled(event.currentTarget.checked)}
+            ref={fileInputRef}
+            data-testid="upload-audio-input"
+            type="file"
+            accept="audio/*,video/webm,video/mp4"
+            hidden
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (file) uploadAudioFile(file, focusedDate).catch((error) => {
+                window.alert(error instanceof Error ? error.message : 'No se pudo subir el audio')
+              })
+            }}
           />
-          mic
-        </label>
-        <button type="button" className="sidebar-command" data-testid="record-video-button" disabled={isRecording || isTranscribing} onClick={() => start('video')}>
-          Grabar video
-        </button>
-        <label className="recording-toggle">
-          <input
-            type="checkbox"
-            checked={videoMicEnabled}
-            onChange={(event) => setVideoMicEnabled(event.currentTarget.checked)}
-          />
-          mic
-        </label>
-        <button type="button" className="sidebar-command" data-testid="record-mic-button" disabled={isRecording || isTranscribing} onClick={() => start('mic')}>
-          Solo mic
-        </button>
-        <button
-          type="button"
-          className="sidebar-command"
-          data-testid="upload-audio-button"
-          disabled={isRecording || isTranscribing}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          Subir audio
-        </button>
-        <input
-          ref={fileInputRef}
-          data-testid="upload-audio-input"
-          type="file"
-          accept="audio/*,video/webm,video/mp4"
-          hidden
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0]
-            event.currentTarget.value = ''
-            if (file) uploadAudioFile(file, focusedDate).catch((error) => {
-              window.alert(error instanceof Error ? error.message : 'No se pudo subir el audio')
-            })
-          }}
-        />
-      </div>
+        </div>
+      </section>
 
-      <div className="recording-list">
-        {isLoading && <p>Cargando...</p>}
-        {!isLoading && recordings.length === 0 && <p>Sin transcripciones recientes.</p>}
-        {recordings.map((recording) => (
-          <RecordingListItem key={recording.id} recording={recording} onRetryDone={() => window.location.reload()} />
-        ))}
-      </div>
-    </section>
+      <section className="recording-panel-section">
+        <p className="eyebrow">Transcripciones revisadas</p>
+        <div className="recording-list">
+          {isLoading && <p>Cargando...</p>}
+          {!isLoading && recordings.length === 0 && <p>Sin transcripciones recientes.</p>}
+          {recordings.map((recording) => (
+            <RecordingListItem
+              key={recording.id}
+              recording={recording}
+              onRetryDone={async () => {
+                await refreshRecordings()
+                notifyRecordingReady({ dailyDate: recording.dailyDate, recordingId: recording.id })
+              }}
+            />
+          ))}
+        </div>
+      </section>
+    </div>
   )
 }
 
 function RecordingListItem(props: {
   recording: RecordingRow
-  onRetryDone: () => void
+  onRetryDone: () => Promise<void>
 }) {
   const [isRetrying, setIsRetrying] = useState(false)
   const recording = props.recording
@@ -152,7 +179,7 @@ function RecordingListItem(props: {
       const data = await response.json().catch(() => null)
       if (!response.ok || !data?.success) throw new Error(data?.error || 'Retry failed')
       if (data.jobId) await pollJob(data.jobId)
-      props.onRetryDone()
+      await props.onRetryDone()
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'No se pudo reintentar')
     } finally {
@@ -161,15 +188,18 @@ function RecordingListItem(props: {
   }
 
   return (
-    <article className="recording-row">
+    <article className="recording-row" data-testid={`recording-row-${recording.id}`}>
       <div>
         <strong>{recording.title || `${labelForMode(recording.mode)} ${recording.startedAtTime ?? ''}`}</strong>
         <span>{recording.dailyDate} · {statusLabel(recording.status)}</span>
       </div>
       {recording.errorMessage && <p>{recording.errorMessage}</p>}
+      {recording.status === 'failed' && !recording.canRetryProcessing && (
+        <p>Sube el backup descargado para reintentar.</p>
+      )}
       <div className="recording-row-actions">
-        {recording.status === 'failed' && recording.hasAudioBackup && (
-          <button type="button" onClick={retry} disabled={isRetrying}>
+        {recording.canRetryProcessing && (
+          <button type="button" data-testid={`retry-recording-${recording.id}`} onClick={retry} disabled={isRetrying}>
             {isRetrying ? '...' : 'Retry'}
           </button>
         )}
@@ -213,4 +243,8 @@ async function pollJob(jobId: string) {
   }
 
   throw new Error('Timed out waiting for retry result')
+}
+
+function notifyRecordingReady(detail: RecordingCompletedDetail) {
+  window.dispatchEvent(new CustomEvent<RecordingCompletedDetail>(RECORDING_COMPLETED_EVENT, { detail }))
 }

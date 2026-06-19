@@ -80,9 +80,17 @@ test.describe('daily view and app shell', () => {
     const section = page.locator(`[data-date="${today}"]`)
 
     await page.reload()
+    await expect(page.getByTestId('recording-panel')).toHaveCount(0)
+    await expect(page.getByTestId('open-recordings-button')).toBeVisible()
+    await page.getByTestId('open-recordings-button').click()
+    await expect(page.getByTestId('recording-dialog')).toBeVisible()
     await expect(page.getByTestId('recording-panel')).toBeVisible()
     await expect(page.getByTestId('record-meeting-button')).toBeVisible()
+    await expect(page.getByTestId('meeting-mic-toggle')).toBeVisible()
     await expect(page.getByTestId('record-video-button')).toBeVisible()
+    await expect(page.getByTestId('video-mic-toggle')).toBeVisible()
+    await expect(page.getByTestId('record-mic-button')).toBeVisible()
+    await expect(page.getByTestId('upload-audio-button')).toBeVisible()
 
     const chooserPromise = page.waitForEvent('filechooser')
     await page.getByTestId('upload-audio-button').click()
@@ -94,6 +102,8 @@ test.describe('daily view and app shell', () => {
     })
 
     await expect(page.getByTestId('upload-audio-button')).toBeEnabled({ timeout: 15000 })
+    await page.getByRole('button', { name: 'Cerrar' }).click()
+    await expect(page.getByTestId('recording-dialog')).toHaveCount(0)
 
     await expect.poll(async () => textareaValues(section)).toContain('meetings')
     await expect.poll(async () => textareaValues(section)).toContain('summary')
@@ -111,6 +121,84 @@ test.describe('daily view and app shell', () => {
     await clickCollapse(page, transcriptionBlockId)
     await expect(transcriptionDescendants).toHaveCount(1)
     await expect(transcriptionDescendants.last()).toHaveValue(/pipeline de transcripcion/)
+  })
+
+  test('desktop recording panel retries only recordings with archived audio', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only recording panel')
+
+    let retried = false
+    let dailyRangeRequests = 0
+    await page.route('**/api/transcribe', async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback()
+        return
+      }
+
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          recordings: [
+            {
+              id: 'retryable-recording',
+              mode: 'meeting',
+              status: retried ? 'completed' : 'failed',
+              dailyDate: '2026-06-18',
+              startedAtTime: '09:30',
+              title: retried ? 'Retry listo' : null,
+              errorMessage: retried ? null : 'Summary failed',
+              createdAt: 1,
+              hasAudioBackup: true,
+              canRetryProcessing: !retried,
+            },
+            {
+              id: 'lost-audio-recording',
+              mode: 'file',
+              status: 'failed',
+              dailyDate: '2026-06-17',
+              startedAtTime: null,
+              title: null,
+              errorMessage: 'Railway bucket storage is not configured',
+              createdAt: 0,
+              hasAudioBackup: false,
+              canRetryProcessing: false,
+            },
+          ],
+        }),
+      })
+    })
+    await page.route('**/api/transcriptions/retryable-recording/retry', async (route) => {
+      retried = true
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, jobId: 'retryable-recording' }),
+      })
+    })
+    await page.route('**/api/transcribe/status**', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          job: { id: 'retryable-recording', status: 'done', progress: 100, recordingId: 'retryable-recording' },
+        }),
+      })
+    })
+    await page.route('**/api/daily/range**', async (route) => {
+      dailyRangeRequests += 1
+      await route.fallback()
+    })
+
+    await page.getByTestId('open-recordings-button').click()
+    await expect(page.getByTestId('recording-dialog')).toBeVisible()
+    await expect(page.getByTestId('retry-recording-retryable-recording')).toBeVisible()
+    await expect(page.getByTestId('recording-row-lost-audio-recording')).toContainText('Sube el backup descargado para reintentar.')
+    await expect(page.getByTestId('recording-row-lost-audio-recording').getByRole('button', { name: 'Retry' })).toHaveCount(0)
+
+    dailyRangeRequests = 0
+    await page.getByTestId('retry-recording-retryable-recording').click()
+    await expect(page.getByTestId('recording-row-retryable-recording')).toContainText('listo', { timeout: 5000 })
+    await expect(page.getByTestId('retry-recording-retryable-recording')).toHaveCount(0)
+    await expect.poll(() => dailyRangeRequests).toBeGreaterThan(0)
   })
 
   test('desktop virtual scroll and calendar navigation keep focused date in sync', async ({ page }, testInfo) => {
