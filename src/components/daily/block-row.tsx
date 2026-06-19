@@ -1,8 +1,10 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePersistedBlockEditor } from './block-editor-interaction'
 import type { CreatedBlock, CreateBlockInput, DropState, PatchBlockOptions, TimelineBlock, TreeBlock } from './types'
+
+const COLLAPSE_ANIMATION_MS = 180
 
 interface BlockRowProps {
   block: TreeBlock
@@ -20,6 +22,14 @@ interface BlockRowProps {
 }
 
 export function BlockRow(props: BlockRowProps) {
+  const hasChildren = props.block.children.length > 0
+  const [renderChildren, setRenderChildren] = useState(() => hasChildren && !props.block.isCollapsed)
+  const [childrenVisuallyCollapsed, setChildrenVisuallyCollapsed] = useState(() => props.block.isCollapsed)
+  const didMountRef = useRef(false)
+  const previousCollapsedRef = useRef(props.block.isCollapsed)
+  const collapseTimeoutRef = useRef<number | null>(null)
+  const stateFrameRef = useRef<number | null>(null)
+  const expandFrameRef = useRef<number | null>(null)
   const {
     textareaRef,
     localContent,
@@ -38,6 +48,85 @@ export function BlockRow(props: BlockRowProps) {
   })
   const target = props.dropState
   const isChildTarget = target?.referenceBlockId === props.block.id && target.placement === 'child'
+  const markerClassName = [
+    'block-marker',
+    props.block.kind === 'todo' ? 'is-todo' : 'is-text',
+    hasChildren ? 'has-children' : '',
+  ].filter(Boolean).join(' ')
+
+  useEffect(() => {
+    if (collapseTimeoutRef.current !== null) {
+      window.clearTimeout(collapseTimeoutRef.current)
+      collapseTimeoutRef.current = null
+    }
+    if (stateFrameRef.current !== null) {
+      window.cancelAnimationFrame(stateFrameRef.current)
+      stateFrameRef.current = null
+    }
+    if (expandFrameRef.current !== null) {
+      window.cancelAnimationFrame(expandFrameRef.current)
+      expandFrameRef.current = null
+    }
+
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      previousCollapsedRef.current = props.block.isCollapsed
+      return
+    }
+
+    const collapseChanged = previousCollapsedRef.current !== props.block.isCollapsed
+    previousCollapsedRef.current = props.block.isCollapsed
+    const scheduleStateUpdate = (callback: () => void) => {
+      stateFrameRef.current = window.requestAnimationFrame(() => {
+        stateFrameRef.current = null
+        callback()
+      })
+    }
+
+    if (!hasChildren) {
+      scheduleStateUpdate(() => {
+        setRenderChildren(false)
+        setChildrenVisuallyCollapsed(false)
+      })
+      return
+    }
+
+    if (!collapseChanged) {
+      scheduleStateUpdate(() => {
+        setRenderChildren(!props.block.isCollapsed)
+        setChildrenVisuallyCollapsed(props.block.isCollapsed)
+      })
+      return
+    }
+
+    if (props.block.isCollapsed) {
+      scheduleStateUpdate(() => {
+        setChildrenVisuallyCollapsed(true)
+        collapseTimeoutRef.current = window.setTimeout(() => {
+          setRenderChildren(false)
+          collapseTimeoutRef.current = null
+        }, COLLAPSE_ANIMATION_MS)
+      })
+      return
+    }
+
+    scheduleStateUpdate(() => {
+      setRenderChildren(true)
+      setChildrenVisuallyCollapsed(true)
+      expandFrameRef.current = window.requestAnimationFrame(() => {
+        setChildrenVisuallyCollapsed(false)
+        expandFrameRef.current = null
+      })
+    })
+  }, [hasChildren, props.block.isCollapsed])
+
+  useEffect(() => {
+    return () => {
+      if (collapseTimeoutRef.current !== null) window.clearTimeout(collapseTimeoutRef.current)
+      if (stateFrameRef.current !== null) window.cancelAnimationFrame(stateFrameRef.current)
+      if (expandFrameRef.current !== null) window.cancelAnimationFrame(expandFrameRef.current)
+    }
+  }, [])
 
   return (
     <div className="block-row" style={{ '--depth': props.depth } as CSSProperties}>
@@ -75,17 +164,33 @@ export function BlockRow(props: BlockRowProps) {
           ::
         </button>
 
-        {props.block.kind === 'todo' ? (
-          <button
-            type="button"
-            className="todo-check"
-            data-testid={`todo-toggle-${props.block.id}`}
-            aria-label="Completar todo"
-            onClick={() => props.onPatchBlock(props.block.id, { action: 'toggleTodo' })}
-          />
-        ) : (
-          <span className="text-dot" />
-        )}
+        <div className={markerClassName}>
+          {hasChildren && (
+            <button
+              type="button"
+              className={`collapse-chevron${props.block.isCollapsed ? ' is-collapsed' : ''}`}
+              data-testid={`collapse-${props.block.id}`}
+              aria-label={props.block.isCollapsed ? 'Expandir bloque' : 'Colapsar bloque'}
+              aria-expanded={!props.block.isCollapsed}
+              title={props.block.isCollapsed ? 'Expandir' : 'Colapsar'}
+              onClick={() => props.onPatchBlock(props.block.id, { action: 'setCollapsed', isCollapsed: !props.block.isCollapsed })}
+            >
+              <span aria-hidden="true">&gt;</span>
+            </button>
+          )}
+
+          {props.block.kind === 'todo' ? (
+            <button
+              type="button"
+              className="todo-check"
+              data-testid={`todo-toggle-${props.block.id}`}
+              aria-label="Completar todo"
+              onClick={() => props.onPatchBlock(props.block.id, { action: 'toggleTodo' })}
+            />
+          ) : !hasChildren ? (
+            <span className="text-dot" />
+          ) : null}
+        </div>
 
         <textarea
           ref={textareaRef}
@@ -123,27 +228,26 @@ export function BlockRow(props: BlockRowProps) {
           >
             &lt;
           </button>
-          {props.block.children.length > 0 && (
-            <button
-              type="button"
-              title="Colapsar"
-              data-testid={`collapse-${props.block.id}`}
-              onClick={() => props.onPatchBlock(props.block.id, { action: 'setCollapsed', isCollapsed: !props.block.isCollapsed })}
-            >
-              {props.block.isCollapsed ? '+' : '-'}
-            </button>
-          )}
         </div>
       </div>
 
-      {!props.block.isCollapsed && props.block.children.map((child) => (
-        <BlockRow
-          key={`${child.id}-${child.updatedAt}`}
-          {...props}
-          block={child}
-          depth={props.depth + 1}
-        />
-      ))}
+      {renderChildren && (
+        <div
+          className={`block-children${childrenVisuallyCollapsed ? ' is-collapsed' : ''}`}
+          aria-hidden={childrenVisuallyCollapsed}
+        >
+          <div className="block-children-inner">
+            {props.block.children.map((child) => (
+              <BlockRow
+                key={`${child.id}-${child.updatedAt}`}
+                {...props}
+                block={child}
+                depth={props.depth + 1}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <DropLine
         active={target?.referenceBlockId === props.block.id && target.placement === 'after'}

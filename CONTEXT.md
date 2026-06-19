@@ -72,6 +72,18 @@ _Avoid_: Copying blocks between days, per-child date overrides, date change with
 Drag and drop over a block tree must resolve to an explicit tree operation: insert before a sibling, insert after a sibling, or insert as a child. The UI must show the resolved target while dragging: a line between blocks for sibling insertion, or a full-block border/highlight for child insertion.
 _Avoid_: Ambiguous drop behavior, invisible inferred targets
 
+**Block Collapse**:
+A universal block-tree capability that hides or reveals a block's descendant tree wherever that block tree is shown. Collapse belongs to the block itself, not to a specific view of the block; expanding an ancestor does not reset descendant collapse states. Collapse affects visual representation only, not block existence, searchability, movement, or future automation over descendants.
+_Avoid_: View-specific collapse state, session-only hidden descendants
+
+**Collapse Control**:
+A compact chevron shown only for blocks with children. For text blocks, the chevron replaces the bullet; for todo blocks with children, the chevron appears to the left of the todo marker so todo state remains visible.
+_Avoid_: Descendant counters, textual hidden-child labels, collapse controls on leaf blocks
+
+**Collapse Animation**:
+Collapse and expansion animate only when the user changes a block's collapse state. Persisted collapsed state is applied immediately on load without replaying an animation.
+_Avoid_: Initial-load collapse animations, animated hydration of persisted state
+
 **Collapsed Drop Expansion**:
 When dragging over a collapsed block as a child drop target, holding the drag over that block for 2 seconds expands it so the user can drop inside its subtree.
 _Avoid_: Forcing drops into hidden content, requiring a separate expand action during drag

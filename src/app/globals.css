@@ -343,7 +343,7 @@ textarea {
 
 .block-editor {
   display: grid;
-  grid-template-columns: 26px 22px minmax(0, 1fr) auto;
+  grid-template-columns: 26px 34px minmax(0, 1fr) auto;
   align-items: start;
   gap: 6px;
   border: 1px solid transparent;
@@ -400,10 +400,50 @@ textarea {
 }
 
 .block-grip:hover,
+.collapse-chevron:hover,
 .block-actions button:hover {
   border-color: var(--line);
   background: var(--panel-soft);
   color: var(--muted);
+}
+
+.block-marker {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  width: 34px;
+  min-height: 26px;
+}
+
+.block-marker.is-todo.has-children {
+  justify-content: flex-start;
+}
+
+.collapse-chevron {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  min-width: 16px;
+  height: 22px;
+  margin-top: 2px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 3px);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+.collapse-chevron span {
+  display: block;
+  transform: rotate(90deg);
+  transition: transform 160ms ease-out;
+}
+
+.collapse-chevron.is-collapsed span {
+  transform: rotate(0deg);
 }
 
 .todo-check {
@@ -474,6 +514,31 @@ textarea {
 
 .drop-line.is-active {
   background: var(--text);
+}
+
+.block-children {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 180ms ease-out, opacity 140ms ease-out;
+}
+
+.block-children.is-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.block-children-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block-children,
+  .collapse-chevron span {
+    transition: none;
+  }
 }
 
 .mobile-timeline {

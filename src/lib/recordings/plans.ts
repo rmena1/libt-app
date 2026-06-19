@@ -7,6 +7,7 @@ export type RecordingSummary = MeetingSummaryPayload | VideoSummaryPayload
 
 export interface PlannedRecordingBlock {
   content: string
+  isCollapsed?: boolean
   children?: PlannedRecordingBlock[]
 }
 
@@ -55,6 +56,7 @@ export function planRecordingBlocks(input: {
       },
       {
         content: 'transcription',
+        isCollapsed: true,
         children: [{ content: input.transcript.trim() }],
       },
     ],
