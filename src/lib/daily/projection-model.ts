@@ -4,6 +4,7 @@ import type {
   TodoPriority,
   TodoStatus,
 } from '@/lib/blocks/plans.ts'
+import { orderSiblings } from '@/lib/blocks/tree.ts'
 
 export interface TimelineTodoSnapshot {
   blockId: string
@@ -45,8 +46,8 @@ export function buildDailyTimelineTree(record: DailyTimelineRecord | null): Dail
   }
 
   for (const block of nodes) {
-    block.children = byParent.get(block.id) ?? []
+    block.children = orderSiblings(byParent.get(block.id) ?? [])
   }
 
-  return byParent.get(record.dailyBlock.id) ?? []
+  return orderSiblings(byParent.get(record.dailyBlock.id) ?? [])
 }

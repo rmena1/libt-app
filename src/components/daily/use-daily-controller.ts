@@ -61,15 +61,17 @@ export function useDailyController() {
 
   const createBlock = useCallback(async (input: CreateBlockInput): Promise<CreatedBlock> => {
     const blockId = input.id ?? generateId()
+    const referenceBlockId = input.afterBlockId ?? input.beforeBlockId ?? null
     const command = {
       ...input,
       id: blockId,
+      parentBlockId: referenceBlockId ? null : input.parentBlockId ?? null,
       kind: input.kind ?? 'text',
       content: input.content ?? '',
     }
 
-    const structuralDependency = input.afterBlockId
-      ? pendingPatchesRef.current.get(input.afterBlockId)
+    const structuralDependency = referenceBlockId
+      ? pendingPatchesRef.current.get(referenceBlockId)
       : input.parentBlockId
         ? pendingPatchesRef.current.get(input.parentBlockId)
         : null
@@ -78,9 +80,9 @@ export function useDailyController() {
     timeline.applyOptimisticCreateBlock(command)
     if (input.focus !== false) requestBlockFocus(blockId)
 
-    const appendKey = input.afterBlockId ? null : appendDependencyKey(input)
-    const dependency = input.afterBlockId
-      ? pendingCreatesRef.current.get(input.afterBlockId)
+    const appendKey = referenceBlockId ? null : appendDependencyKey(input)
+    const dependency = referenceBlockId
+      ? pendingCreatesRef.current.get(referenceBlockId)
       : pendingAppendCreatesRef.current.get(appendKey ?? '')
     const persistPromise = (async () => {
       try {
@@ -92,8 +94,9 @@ export function useDailyController() {
           body: JSON.stringify({
             id: blockId,
             date: input.date,
-            parentBlockId: input.parentBlockId ?? null,
+            parentBlockId: command.parentBlockId,
             afterBlockId: input.afterBlockId ?? null,
+            beforeBlockId: input.beforeBlockId ?? null,
             kind: input.kind ?? 'text',
             content: input.content ?? '',
           }),
@@ -130,6 +133,9 @@ export function useDailyController() {
         : null
 
     const patchPromise = (async () => {
+      const createDependency = pendingCreatesRef.current.get(blockId)
+      if (createDependency) await createDependency
+
       const response = await fetch(`/api/blocks/${blockId}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },

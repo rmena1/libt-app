@@ -62,18 +62,26 @@ export function useDailyTimeline() {
       const recordIndex = currentRecords.findIndex((record) => record.date === input.date)
       const existingRecord = recordIndex >= 0 ? currentRecords[recordIndex] : null
       const dailyBlock = existingRecord?.dailyBlock ?? createOptimisticDailyBlock(input.date, now)
+      const parentBlockId = resolveOptimisticCreateParentId(existingRecord, dailyBlock, input)
       const siblings = existingRecord?.blocks
-        .filter((block) => block.parentBlockId === (input.parentBlockId ?? dailyBlock.id))
+        .filter((block) => block.parentBlockId === parentBlockId)
         ?? []
+      const beforeIndex = input.beforeBlockId
+        ? siblings.findIndex((block) => block.id === input.beforeBlockId)
+        : -1
       const afterIndex = input.afterBlockId
         ? siblings.findIndex((block) => block.id === input.afterBlockId)
         : -1
-      const insertIndex = afterIndex >= 0 ? afterIndex + 1 : siblings.length
+      const insertIndex = beforeIndex >= 0
+        ? beforeIndex
+        : afterIndex >= 0
+          ? afterIndex + 1
+          : siblings.length
       const block: TimelineBlock = {
         id: input.id,
         userId: dailyBlock.userId,
         kind: input.kind ?? 'text',
-        parentBlockId: input.parentBlockId ?? dailyBlock.id,
+        parentBlockId,
         dailyBlockId: dailyBlock.dailyBlockId,
         position: positionForIndex(insertIndex),
         content: input.content ?? '',
@@ -90,8 +98,17 @@ export function useDailyTimeline() {
             }
           : null,
       }
+      const siblingIds = siblings.map((sibling) => sibling.id)
+      siblingIds.splice(insertIndex, 0, block.id)
       const nextRecord: DailyRecord = existingRecord
-        ? { ...existingRecord, blocks: insertBlockAfter(existingRecord.blocks, block, input.afterBlockId) }
+        ? {
+            ...existingRecord,
+            blocks: rebalanceOptimisticSiblings(
+              insertBlockNearReference(existingRecord.blocks, block, input),
+              parentBlockId,
+              siblingIds,
+            ),
+          }
         : { date: input.date as IsoDate, dailyBlock, blocks: [dailyBlock, block] }
 
       if (recordIndex < 0) return [...currentRecords, nextRecord].sort((left, right) => left.date.localeCompare(right.date))
@@ -328,17 +345,53 @@ function createOptimisticDailyBlock(date: string, now: number): TimelineBlock {
   }
 }
 
-function insertBlockAfter(blocks: TimelineBlock[], block: TimelineBlock, afterBlockId?: string | null): TimelineBlock[] {
-  if (!afterBlockId) return [...blocks, block]
+function resolveOptimisticCreateParentId(
+  record: DailyRecord | null,
+  dailyBlock: TimelineBlock,
+  input: CreateBlockInput,
+): string {
+  if (input.parentBlockId) return input.parentBlockId
 
-  const index = blocks.findIndex((candidate) => candidate.id === afterBlockId)
+  const referenceBlockId = input.afterBlockId ?? input.beforeBlockId ?? null
+  const referenceBlock = referenceBlockId
+    ? record?.blocks.find((block) => block.id === referenceBlockId)
+    : null
+
+  return referenceBlock?.parentBlockId ?? dailyBlock.id
+}
+
+function insertBlockNearReference(
+  blocks: TimelineBlock[],
+  block: TimelineBlock,
+  input: Pick<CreateBlockInput, 'afterBlockId' | 'beforeBlockId'>,
+): TimelineBlock[] {
+  const referenceBlockId = input.beforeBlockId ?? input.afterBlockId ?? null
+  if (!referenceBlockId) return [...blocks, block]
+
+  const index = blocks.findIndex((candidate) => candidate.id === referenceBlockId)
   if (index < 0) return [...blocks, block]
+  const insertIndex = input.beforeBlockId ? index : index + 1
 
   return [
-    ...blocks.slice(0, index + 1),
+    ...blocks.slice(0, insertIndex),
     block,
-    ...blocks.slice(index + 1),
+    ...blocks.slice(insertIndex),
   ]
+}
+
+function rebalanceOptimisticSiblings(
+  blocks: TimelineBlock[],
+  parentBlockId: string,
+  orderedSiblingIds: string[],
+): TimelineBlock[] {
+  const siblingPositionById = new Map(orderedSiblingIds.map((id, index) => [id, positionForIndex(index)]))
+
+  return blocks.map((block) => {
+    if (block.parentBlockId !== parentBlockId) return block
+
+    const position = siblingPositionById.get(block.id)
+    return position ? { ...block, position } : block
+  })
 }
 
 function applyPatchToBlock(block: TimelineBlock, body: object): TimelineBlock {

@@ -8,7 +8,7 @@ type CreateBlock = (input: CreateBlockInput) => Promise<CreatedBlock>
 type PatchBlock = (blockId: string, body: object, options?: PatchBlockOptions) => Promise<void>
 
 interface PersistedBlockEditorInput {
-  block: Pick<TreeBlock, 'id' | 'kind' | 'content'>
+  block: Pick<TreeBlock, 'id' | 'kind' | 'content' | 'parentBlockId' | 'children' | 'isCollapsed'>
   date: string
   previousBlockId?: string | null
   onCreateBlock: CreateBlock
@@ -80,10 +80,47 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
       .catch(() => {})
   }, [input, saveContent])
 
-  const createBlockAfter = useCallback(() => {
-    input.onCreateBlock({ date: input.date, afterBlockId: input.block.id }).catch(() => {})
-    saveContent().catch(() => {})
-  }, [input, saveContent])
+  const createBlockFromEnter = useCallback(async (textarea: HTMLTextAreaElement) => {
+    const content = contentRef.current
+    const selectionStart = textarea.selectionStart ?? content.length
+    const selectionEnd = textarea.selectionEnd ?? selectionStart
+    const isSplit = selectionStart < content.length || selectionEnd < content.length
+
+    if (isSplit) {
+      const contentBeforeCursor = content.slice(0, selectionStart)
+      const contentAfterCursor = content.slice(selectionEnd)
+
+      setLocalContent(contentBeforeCursor)
+      await input.onPatchBlock(input.block.id, {
+        action: 'updateContent',
+        content: contentBeforeCursor,
+      })
+      savedContentRef.current = contentBeforeCursor
+
+      await input.onCreateBlock({
+        date: input.date,
+        afterBlockId: input.block.id,
+        content: contentAfterCursor,
+      })
+      return
+    }
+
+    await saveContent()
+
+    const firstVisibleChild = input.block.isCollapsed ? null : input.block.children[0] ?? null
+    if (firstVisibleChild) {
+      await input.onCreateBlock({
+        date: input.date,
+        beforeBlockId: firstVisibleChild.id,
+      })
+      return
+    }
+
+    await input.onCreateBlock({
+      date: input.date,
+      afterBlockId: input.block.id,
+    })
+  }, [input, saveContent, setLocalContent])
 
   const deleteEmptyBlock = useCallback(() => {
     const focusOptions = input.previousBlockId
@@ -105,7 +142,7 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
 
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      createBlockAfter()
+      createBlockFromEnter(event.currentTarget).catch(() => {})
       return
     }
 
@@ -114,7 +151,7 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
       event.stopPropagation()
       saveThenPatch({ action: event.shiftKey ? 'outdent' : 'indent' }, { refocus: true })
     }
-  }, [createBlockAfter, deleteEmptyBlock, saveThenPatch])
+  }, [createBlockFromEnter, deleteEmptyBlock, saveThenPatch])
 
   const handleBlur = useCallback(() => {
     saveContent().catch(() => {})

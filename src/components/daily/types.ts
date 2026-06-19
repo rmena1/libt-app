@@ -28,6 +28,7 @@ export interface CreateBlockInput {
   date: string
   parentBlockId?: string | null
   afterBlockId?: string | null
+  beforeBlockId?: string | null
   kind?: 'text' | 'todo'
   content?: string
   focus?: boolean

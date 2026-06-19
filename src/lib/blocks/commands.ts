@@ -23,6 +23,9 @@ export const createBlockCommandSchema = z.object({
   content: z.string().default(''),
   parentBlockId: z.string().nullable().optional(),
   afterBlockId: z.string().nullable().optional(),
+  beforeBlockId: z.string().nullable().optional(),
+}).refine((command) => !(command.afterBlockId && command.beforeBlockId), {
+  message: 'Use either afterBlockId or beforeBlockId, not both',
 })
 
 const updateContentCommandSchema = z.object({
@@ -124,6 +127,7 @@ export async function executeCreateBlockCommand(input: {
     content: input.command.content,
     parentBlockId: input.command.parentBlockId,
     afterBlockId: input.command.afterBlockId,
+    beforeBlockId: input.command.beforeBlockId,
   })
 
   return { block }

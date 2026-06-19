@@ -64,19 +64,31 @@ export async function createBlockOnDate(input: {
   content: string
   parentBlockId?: string | null
   afterBlockId?: string | null
+  beforeBlockId?: string | null
 }): Promise<BlockSnapshot> {
   assertIsoDate(input.date)
+  if (input.afterBlockId && input.beforeBlockId) {
+    throw new Error('Use either afterBlockId or beforeBlockId, not both')
+  }
 
   const created = await db.transaction(async (tx) => {
     const parent = await resolveCreateParentForTx(tx, input)
     const siblings = await findOrderedChildrenForTx(tx, input.userId, parent.id)
+    const referenceBlockId = input.afterBlockId ?? input.beforeBlockId ?? null
 
-    if (input.afterBlockId) {
-      const sibling = siblings.find((candidate) => candidate.id === input.afterBlockId)
-      if (!sibling) throw new Error('afterBlockId is not a sibling of the target parent')
+    if (referenceBlockId) {
+      const sibling = siblings.find((candidate) => candidate.id === referenceBlockId)
+      if (!sibling) throw new Error('Reference block is not a sibling of the target parent')
     }
 
-    const insertIndex = input.afterBlockId
+    const insertIndex = input.beforeBlockId
+      ? insertionIndexForTarget({
+          siblings,
+          movingBlockId: '',
+          placement: 'before',
+          referenceBlockId: input.beforeBlockId,
+        })
+      : input.afterBlockId
       ? insertionIndexForTarget({
           siblings,
           movingBlockId: '',
@@ -248,22 +260,29 @@ async function resolveCreateParentForTx(
     date: string
     parentBlockId?: string | null
     afterBlockId?: string | null
+    beforeBlockId?: string | null
   },
 ): Promise<BlockSnapshot> {
   let parent: BlockSnapshot | null = null
+  const referenceBlockId = input.afterBlockId ?? input.beforeBlockId ?? null
+  const referenceName = input.afterBlockId ? 'afterBlockId' : 'beforeBlockId'
 
-  if (input.afterBlockId) {
-    const afterBlock = await findUserBlockForTx(tx, input.userId, input.afterBlockId)
-    if (!afterBlock) throw new Error('afterBlockId not found')
+  if (input.afterBlockId && input.beforeBlockId) {
+    throw new Error('Use either afterBlockId or beforeBlockId, not both')
+  }
 
-    const afterBlockDate = await findDateForDailyBlockTx(tx, input.userId, afterBlock.dailyBlockId)
-    if (afterBlockDate !== input.date) {
-      throw new Error('afterBlockId belongs to a different date')
+  if (referenceBlockId) {
+    const referenceBlock = await findUserBlockForTx(tx, input.userId, referenceBlockId)
+    if (!referenceBlock) throw new Error(`${referenceName} not found`)
+
+    const referenceDate = await findDateForDailyBlockTx(tx, input.userId, referenceBlock.dailyBlockId)
+    if (referenceDate !== input.date) {
+      throw new Error(`${referenceName} belongs to a different date`)
     }
 
-    const targetParentId = input.parentBlockId ?? afterBlock.parentBlockId
-    if (!targetParentId || targetParentId !== afterBlock.parentBlockId) {
-      throw new Error('afterBlockId is not a sibling of the target parent')
+    const targetParentId = input.parentBlockId ?? referenceBlock.parentBlockId
+    if (!targetParentId || targetParentId !== referenceBlock.parentBlockId) {
+      throw new Error(`${referenceName} is not a sibling of the target parent`)
     }
     parent = await findUserBlockForTx(tx, input.userId, targetParentId)
   } else if (input.parentBlockId) {

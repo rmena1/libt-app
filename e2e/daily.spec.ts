@@ -40,6 +40,7 @@ test.describe('daily view and app shell', () => {
     await expect(blockInputs.last()).toHaveValue(secondContent)
 
     const parentForIndentedBlockId = await blockIdFromInput(blockInputs.last())
+    await placeCursorAtEnd(blockInputs.last())
     await blockInputs.last().press('Enter')
     await expect(blockInputs).toHaveCount(3)
 
@@ -57,6 +58,7 @@ test.describe('daily view and app shell', () => {
     await expect.poll(async () => getBlockParentId(secondBlockId)).not.toBe(firstBlockId)
     await expect(page.getByTestId(`block-input-${secondBlockId}`)).toBeFocused()
 
+    await placeCursorAtEnd(page.getByTestId(`block-input-${secondBlockId}`))
     await page.getByTestId(`block-input-${secondBlockId}`).press('Enter')
     await expect(blockInputs).toHaveCount(4)
     await expect(blockInputs.last()).toBeFocused()
@@ -193,6 +195,59 @@ test.describe('daily view and app shell', () => {
     await expect(todoInput).toHaveValue('')
     await page.keyboard.type('Comprar cafe')
     await expect(todoInput).toHaveValue('Comprar cafe')
+  })
+
+  test('desktop Enter preserves tree position and splits block content', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only Enter tree assertions')
+
+    const date = addDays(todayIso(), 10)
+    const section = page.locator(`[data-date="${date}"]`)
+    const parent = await createBlock(page, { date, content: `Parent Enter ${Date.now()}` })
+    const child = await createBlock(page, { date, parentBlockId: parent.id, content: `Child Enter ${Date.now()}` })
+    const followingRoot = await createBlock(page, { date, content: `Following root ${Date.now()}` })
+
+    await page.reload()
+    await goToDate(page, date)
+
+    const parentInput = page.getByTestId(`block-input-${parent.id}`)
+    await placeCursorAtEnd(parentInput)
+    await parentInput.press('Enter')
+
+    const firstInsertedChildId = await activeBlockInputId(page)
+    await expect(page.getByTestId(`block-input-${firstInsertedChildId}`)).toBeFocused()
+    await expect.poll(async () => getBlockParentId(firstInsertedChildId)).toBe(parent.id)
+    await expect.poll(async () => getChildBlockIds(parent.id)).toEqual([firstInsertedChildId, child.id])
+
+    await page.getByTestId(`block-input-${firstInsertedChildId}`).fill('Inserted before child')
+    await placeCursorAtEnd(page.getByTestId(`block-input-${child.id}`))
+    await page.getByTestId(`block-input-${child.id}`).press('Enter')
+
+    const childSiblingId = await activeBlockInputId(page)
+    await expect.poll(async () => getBlockParentId(childSiblingId)).toBe(parent.id)
+    await expect.poll(async () => getChildBlockIds(parent.id)).toEqual([firstInsertedChildId, child.id, childSiblingId])
+
+    await page.getByTestId(`block-input-${childSiblingId}`).fill('Sibling after child')
+    await expect.poll(async () => blockTextareaValues(section)).toEqual([
+      parent.content,
+      'Inserted before child',
+      child.content,
+      'Sibling after child',
+      followingRoot.content,
+    ])
+
+    const splitBlock = await createBlock(page, { date, content: 'Alpha Beta Gamma' })
+    await page.reload()
+    await goToDate(page, date)
+
+    const splitInput = page.getByTestId(`block-input-${splitBlock.id}`)
+    await placeCursorAtOffset(splitInput, 'Alpha '.length)
+    await splitInput.press('Enter')
+
+    const splitSiblingId = await activeBlockInputId(page)
+    await expect(page.getByTestId(`block-input-${splitBlock.id}`)).toHaveValue('Alpha ')
+    await expect(page.getByTestId(`block-input-${splitSiblingId}`)).toHaveValue('Beta Gamma')
+    const splitParentId = await getBlockParentId(splitBlock.id)
+    await expect.poll(async () => getBlockParentId(splitSiblingId)).toBe(splitParentId)
   })
 
   test('rejects cross-date reference mismatch without creating an empty daily block', async ({ page }, testInfo) => {
@@ -345,6 +400,8 @@ async function createBlock(page: Page, input: {
   content: string
   parentBlockId?: string
   kind?: 'text' | 'todo'
+  afterBlockId?: string
+  beforeBlockId?: string
 }) {
   const response = await page.request.post('/api/blocks', {
     data: {
@@ -352,6 +409,8 @@ async function createBlock(page: Page, input: {
       content: input.content,
       parentBlockId: input.parentBlockId ?? null,
       kind: input.kind ?? 'text',
+      afterBlockId: input.afterBlockId ?? null,
+      beforeBlockId: input.beforeBlockId ?? null,
     },
   })
   expect(response.ok()).toBeTruthy()
@@ -394,10 +453,38 @@ async function textareaValues(scope: Locator) {
   )
 }
 
+async function blockTextareaValues(scope: Locator) {
+  return scope.locator('[data-testid^="block-input-"]').evaluateAll((nodes) =>
+    nodes.map((node) => (node as HTMLTextAreaElement).value),
+  )
+}
+
+async function placeCursorAtEnd(input: Locator) {
+  await input.evaluate((node) => {
+    const textarea = node as HTMLTextAreaElement
+    textarea.focus()
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+  })
+}
+
+async function placeCursorAtOffset(input: Locator, offset: number) {
+  await input.evaluate((node, cursorOffset) => {
+    const textarea = node as HTMLTextAreaElement
+    textarea.focus()
+    textarea.setSelectionRange(cursorOffset, cursorOffset)
+  }, offset)
+}
+
 async function activeBlockInputId(page: Page) {
-  const testId = await page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null)
+  await expect.poll(async () => activeBlockInputTestId(page)).not.toBeNull()
+  const testId = await activeBlockInputTestId(page)
   if (!testId?.startsWith('block-input-')) throw new Error(`Expected a focused block input, got ${testId}`)
   return testId.replace('block-input-', '')
+}
+
+async function activeBlockInputTestId(page: Page) {
+  const testId = await page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null)
+  return testId?.startsWith('block-input-') ? testId : null
 }
 
 async function calendarOrder(page: Page) {
@@ -473,6 +560,18 @@ async function getBlockParentId(blockId: string) {
   try {
     const result = await client.query('SELECT parent_block_id FROM blocks WHERE id = $1', [blockId])
     return result.rows[0]?.parent_block_id ?? null
+  } finally {
+    await client.end()
+  }
+}
+
+async function getChildBlockIds(parentBlockId: string) {
+  const client = new pg.Client({ connectionString: DATABASE_URL })
+  await client.connect()
+
+  try {
+    const result = await client.query('SELECT id FROM blocks WHERE parent_block_id = $1 ORDER BY position', [parentBlockId])
+    return result.rows.map((row) => row.id)
   } finally {
     await client.end()
   }
