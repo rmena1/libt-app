@@ -10,6 +10,7 @@ import {
   createBlockOnDate,
   deleteBlock,
   indentBlock,
+  mergeBlockIntoTarget,
   moveBlock,
   outdentBlock,
 } from './tree-operations.ts'
@@ -66,6 +67,12 @@ const deleteCommandSchema = z.object({
   action: z.literal('delete'),
 })
 
+const mergeIntoBlockCommandSchema = z.object({
+  action: z.literal('mergeIntoBlock'),
+  targetBlockId: z.string(),
+  targetContent: z.string(),
+})
+
 export const patchBlockCommandSchema = z.discriminatedUnion('action', [
   updateContentCommandSchema,
   convertToTodoCommandSchema,
@@ -75,6 +82,7 @@ export const patchBlockCommandSchema = z.discriminatedUnion('action', [
   indentCommandSchema,
   outdentCommandSchema,
   deleteCommandSchema,
+  mergeIntoBlockCommandSchema,
 ])
 
 const blockIdArgumentSchema = z.object({
@@ -101,6 +109,10 @@ export const blockMutatorCommandSchemas = {
   indent: blockIdArgumentSchema,
   outdent: blockIdArgumentSchema,
   delete: blockIdArgumentSchema,
+  mergeIntoBlock: blockIdArgumentSchema.extend({
+    targetBlockId: z.string(),
+    targetContent: z.string(),
+  }),
 } as const
 
 export type CreateBlockCommand = z.infer<typeof createBlockCommandSchema>
@@ -181,6 +193,15 @@ export async function executePatchBlockCommand(input: {
 
     case 'delete':
       await deleteBlock({ userId, blockId })
+      return { kind: 'ok' }
+
+    case 'mergeIntoBlock':
+      await mergeBlockIntoTarget({
+        userId,
+        blockId,
+        targetBlockId: command.targetBlockId,
+        targetContent: command.targetContent,
+      })
       return { kind: 'ok' }
   }
 }

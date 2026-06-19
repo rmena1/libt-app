@@ -250,6 +250,47 @@ test.describe('daily view and app shell', () => {
     await expect.poll(async () => getBlockParentId(splitSiblingId)).toBe(splitParentId)
   })
 
+  test('desktop Delete merges block content into the visual previous block', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only Delete merge assertions')
+
+    const date = addDays(todayIso(), 11)
+    const sameLevelUpper = await createBlock(page, { date, content: 'Same upper ' })
+    const sameLevelLower = await createBlock(page, { date, afterBlockId: sameLevelUpper.id, content: 'same lower' })
+    const parent = await createBlock(page, { date, content: 'Parent upper ' })
+    const child = await createBlock(page, { date, parentBlockId: parent.id, content: 'child lower' })
+    const parentWithChild = await createBlock(page, { date, content: 'Above root' })
+    const nestedUpper = await createBlock(page, { date, parentBlockId: parentWithChild.id, content: 'Nested upper ' })
+    const rootAfterNested = await createBlock(page, { date, afterBlockId: parentWithChild.id, content: 'root lower' })
+
+    await page.reload()
+    await goToDate(page, date)
+
+    const sameLevelLowerInput = page.getByTestId(`block-input-${sameLevelLower.id}`)
+    await placeCursorAtOffset(sameLevelLowerInput, 0)
+    await sameLevelLowerInput.press('Delete')
+    const sameLevelUpperInput = page.getByTestId(`block-input-${sameLevelUpper.id}`)
+    await expect(sameLevelUpperInput).toHaveValue('Same upper same lower')
+    await expect(page.getByTestId(`block-input-${sameLevelLower.id}`)).toHaveCount(0)
+    await expect.poll(async () => activeBlockInputTestId(page)).toBe(`block-input-${sameLevelUpper.id}`)
+    await expect.poll(async () => selectionStart(sameLevelUpperInput)).toBe('Same upper '.length)
+
+    const childInput = page.getByTestId(`block-input-${child.id}`)
+    await placeCursorAtOffset(childInput, 0)
+    await childInput.press('Delete')
+    const parentInput = page.getByTestId(`block-input-${parent.id}`)
+    await expect(parentInput).toHaveValue('Parent upper child lower')
+    await expect(page.getByTestId(`block-input-${child.id}`)).toHaveCount(0)
+    await expect.poll(async () => activeBlockInputTestId(page)).toBe(`block-input-${parent.id}`)
+
+    const rootAfterNestedInput = page.getByTestId(`block-input-${rootAfterNested.id}`)
+    await placeCursorAtOffset(rootAfterNestedInput, 0)
+    await rootAfterNestedInput.press('Delete')
+    const nestedUpperInput = page.getByTestId(`block-input-${nestedUpper.id}`)
+    await expect(nestedUpperInput).toHaveValue('Nested upper root lower')
+    await expect(page.getByTestId(`block-input-${rootAfterNested.id}`)).toHaveCount(0)
+    await expect.poll(async () => activeBlockInputTestId(page)).toBe(`block-input-${nestedUpper.id}`)
+  })
+
   test('rejects cross-date reference mismatch without creating an empty daily block', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only API invariant')
 
@@ -473,6 +514,10 @@ async function placeCursorAtOffset(input: Locator, offset: number) {
     textarea.focus()
     textarea.setSelectionRange(cursorOffset, cursorOffset)
   }, offset)
+}
+
+async function selectionStart(input: Locator) {
+  return input.evaluate((node) => (node as HTMLTextAreaElement).selectionStart)
 }
 
 async function activeBlockInputId(page: Page) {

@@ -119,6 +119,21 @@ export function useDailyTimeline() {
 
   const applyOptimisticPatchBlock = useCallback((blockId: string, body: object) => {
     setRecords((currentRecords) => currentRecords.map((record) => {
+      if (isMergeIntoBlockPatch(body)) {
+        const idsToDelete = collectOptimisticSubtreeIds(record.blocks, blockId)
+        if (idsToDelete.size === 0) return record
+
+        const now = Date.now()
+        return {
+          ...record,
+          blocks: record.blocks
+            .filter((block) => !idsToDelete.has(block.id))
+            .map((block) => block.id === body.targetBlockId
+              ? { ...block, content: body.targetContent, updatedAt: now }
+              : block),
+        }
+      }
+
       if (isDeletePatch(body)) {
         const idsToDelete = collectOptimisticSubtreeIds(record.blocks, blockId)
         if (idsToDelete.size === 0) return record
@@ -441,6 +456,21 @@ function applyPatchToBlock(block: TimelineBlock, body: object): TimelineBlock {
 
 function isDeletePatch(body: object): boolean {
   return 'action' in body && body.action === 'delete'
+}
+
+function isMergeIntoBlockPatch(body: object): body is {
+  action: 'mergeIntoBlock'
+  targetBlockId: string
+  targetContent: string
+} {
+  return (
+    'action' in body
+    && body.action === 'mergeIntoBlock'
+    && 'targetBlockId' in body
+    && typeof body.targetBlockId === 'string'
+    && 'targetContent' in body
+    && typeof body.targetContent === 'string'
+  )
 }
 
 function collectOptimisticSubtreeIds(blocks: TimelineBlock[], rootBlockId: string): Set<string> {

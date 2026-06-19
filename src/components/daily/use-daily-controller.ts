@@ -18,6 +18,7 @@ export function useDailyController() {
   const [dropState, setDropState] = useState<DropState | null>(null)
   const [isAiOpen, setIsAiOpen] = useState(false)
   const [pendingFocusBlockId, setPendingFocusBlockId] = useState<string | null>(null)
+  const [pendingFocusCursorOffset, setPendingFocusCursorOffset] = useState<number | null>(null)
   const [pendingFocusShellDate, setPendingFocusShellDate] = useState<string | null>(null)
   const expandTimerRef = useRef<number | null>(null)
   const focusRequestSeqRef = useRef(0)
@@ -25,16 +26,18 @@ export function useDailyController() {
   const pendingAppendCreatesRef = useRef<Map<string, Promise<CreatedBlock>>>(new Map())
   const pendingPatchesRef = useRef<Map<string, Promise<void>>>(new Map())
 
-  const requestBlockFocus = useCallback((blockId: string) => {
+  const requestBlockFocus = useCallback((blockId: string, cursorOffset?: number) => {
     focusRequestSeqRef.current += 1
     setPendingFocusShellDate(null)
     setPendingFocusBlockId(blockId)
+    setPendingFocusCursorOffset(cursorOffset ?? null)
     return focusRequestSeqRef.current
   }, [])
 
   const requestShellFocus = useCallback((date: string) => {
     focusRequestSeqRef.current += 1
     setPendingFocusBlockId(null)
+    setPendingFocusCursorOffset(null)
     setPendingFocusShellDate(date)
     return focusRequestSeqRef.current
   }, [])
@@ -50,14 +53,15 @@ export function useDailyController() {
       if (!(input instanceof HTMLTextAreaElement)) return
 
       input.focus({ preventScroll: true })
-      const cursorPosition = input.value.length
+      const cursorPosition = pendingFocusCursorOffset ?? input.value.length
       input.setSelectionRange(cursorPosition, cursorPosition)
       setPendingFocusBlockId(null)
+      setPendingFocusCursorOffset(null)
       setPendingFocusShellDate(null)
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [pendingFocusBlockId, pendingFocusShellDate, timeline.recordsByDate])
+  }, [pendingFocusBlockId, pendingFocusCursorOffset, pendingFocusShellDate, timeline.recordsByDate])
 
   const createBlock = useCallback(async (input: CreateBlockInput): Promise<CreatedBlock> => {
     const blockId = input.id ?? generateId()
@@ -127,7 +131,7 @@ export function useDailyController() {
     timeline.applyOptimisticPatchBlock(blockId, body)
     const focusBlockId = options?.focusBlockId ?? (options?.refocus ? blockId : null)
     const focusRequestSeq = focusBlockId
-      ? requestBlockFocus(focusBlockId)
+      ? requestBlockFocus(focusBlockId, options?.focusCursorOffset)
       : options?.focusShellDate
         ? requestShellFocus(options.focusShellDate)
         : null
@@ -135,6 +139,12 @@ export function useDailyController() {
     const patchPromise = (async () => {
       const createDependency = pendingCreatesRef.current.get(blockId)
       if (createDependency) await createDependency
+
+      const patchDependencyBlockId = dependencyBlockIdForPatch(body, blockId)
+      const patchDependency = patchDependencyBlockId
+        ? pendingPatchesRef.current.get(patchDependencyBlockId)
+        : null
+      if (patchDependency) await patchDependency.catch(() => {})
 
       const response = await fetch(`/api/blocks/${blockId}`, {
         method: 'PATCH',
@@ -149,7 +159,10 @@ export function useDailyController() {
       if (isStructuralPatch(body)) {
         await timeline.refresh()
         if (focusRequestSeq === focusRequestSeqRef.current) {
-          if (focusBlockId) setPendingFocusBlockId(focusBlockId)
+          if (focusBlockId) {
+            setPendingFocusBlockId(focusBlockId)
+            setPendingFocusCursorOffset(options?.focusCursorOffset ?? null)
+          }
           if (options?.focusShellDate) setPendingFocusShellDate(options.focusShellDate)
         }
       }
@@ -219,9 +232,21 @@ export function useDailyController() {
 
 function isStructuralPatch(body: object) {
   if (!('action' in body) || typeof body.action !== 'string') return false
-  return body.action === 'move' || body.action === 'indent' || body.action === 'outdent' || body.action === 'delete'
+  return (
+    body.action === 'move'
+    || body.action === 'indent'
+    || body.action === 'outdent'
+    || body.action === 'delete'
+    || body.action === 'mergeIntoBlock'
+  )
 }
 
 function appendDependencyKey(input: CreateBlockInput) {
   return `${input.date}:${input.parentBlockId ?? 'daily-root'}`
+}
+
+function dependencyBlockIdForPatch(body: object, blockId: string): string | null {
+  if (!('action' in body) || body.action !== 'mergeIntoBlock') return null
+  if (!('targetBlockId' in body) || typeof body.targetBlockId !== 'string') return null
+  return body.targetBlockId === blockId ? null : body.targetBlockId
 }

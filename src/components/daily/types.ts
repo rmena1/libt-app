@@ -42,4 +42,5 @@ export interface PatchBlockOptions {
   refocus?: boolean
   focusBlockId?: string
   focusShellDate?: string
+  focusCursorOffset?: number
 }

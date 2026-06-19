@@ -253,6 +253,44 @@ export async function deleteBlock(input: { userId: string; blockId: string }): P
   })
 }
 
+export async function mergeBlockIntoTarget(input: {
+  userId: string
+  blockId: string
+  targetBlockId: string
+  targetContent: string
+}): Promise<void> {
+  await db.transaction(async (tx) => {
+    const block = await findRequiredUserBlockForTx(tx, input.userId, input.blockId)
+    const target = await findRequiredUserBlockForTx(tx, input.userId, input.targetBlockId)
+    if (block.kind === 'daily' || target.kind === 'daily') throw new Error('Daily blocks cannot be merged')
+    if (!block.parentBlockId) throw new Error('Block parent not found')
+    if (block.dailyBlockId !== target.dailyBlockId) throw new Error('Blocks belong to different daily notes')
+
+    const allUserBlocks = await tx.select().from(blocks).where(eq(blocks.userId, input.userId))
+    const subtreeIds = collectSubtreeIds(allUserBlocks, input.blockId)
+    if (subtreeIds.includes(input.targetBlockId)) {
+      throw new Error('Cannot merge a block into its own subtree')
+    }
+
+    const siblings = await findOrderedChildrenForTx(tx, input.userId, block.parentBlockId)
+    const remainingSiblingIds = siblings
+      .filter((sibling) => sibling.id !== input.blockId)
+      .map((sibling) => sibling.id)
+    const now = nowMs()
+
+    await tx
+      .update(blocks)
+      .set({ content: input.targetContent, updatedAt: now })
+      .where(and(eq(blocks.id, input.targetBlockId), eq(blocks.userId, input.userId)))
+
+    await tx
+      .delete(blocks)
+      .where(and(eq(blocks.id, input.blockId), eq(blocks.userId, input.userId)))
+
+    await rebalanceSiblingPositionsForTx(tx, remainingSiblingIds, now)
+  })
+}
+
 async function resolveCreateParentForTx(
   tx: BlockTreeTransaction,
   input: {

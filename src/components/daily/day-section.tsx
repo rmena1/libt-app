@@ -48,7 +48,7 @@ export function DaySection(props: DaySectionProps) {
     registerDateRef,
   } = props
   const tree = useMemo(() => buildTree(record), [record])
-  const previousBlockIds = useMemo(() => visiblePreviousBlockIds(tree), [tree])
+  const previousBlocks = useMemo(() => visiblePreviousBlocks(tree), [tree])
   const title = formatDateTitle(date)
 
   return (
@@ -82,7 +82,7 @@ export function DaySection(props: DaySectionProps) {
             block={block}
             date={date}
             depth={0}
-            previousBlockIds={previousBlockIds}
+            previousBlocks={previousBlocks}
             dropState={dropState}
             setDropState={setDropState}
             setDragState={setDragState}
@@ -119,13 +119,13 @@ export function DaySection(props: DaySectionProps) {
   )
 }
 
-function visiblePreviousBlockIds(blocks: TreeBlock[]): Map<string, string | null> {
-  const previousById = new Map<string, string | null>()
-  let previousId: string | null = null
+function visiblePreviousBlocks(blocks: TreeBlock[]): Map<string, Pick<TreeBlock, 'id' | 'content'> | null> {
+  const previousById = new Map<string, Pick<TreeBlock, 'id' | 'content'> | null>()
+  let previousBlock: Pick<TreeBlock, 'id' | 'content'> | null = null
 
   const visit = (block: TreeBlock) => {
-    previousById.set(block.id, previousId)
-    previousId = block.id
+    previousById.set(block.id, previousBlock)
+    previousBlock = { id: block.id, content: block.content }
 
     if (!block.isCollapsed) {
       for (const child of block.children) {

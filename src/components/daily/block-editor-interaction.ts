@@ -10,7 +10,7 @@ type PatchBlock = (blockId: string, body: object, options?: PatchBlockOptions) =
 interface PersistedBlockEditorInput {
   block: Pick<TreeBlock, 'id' | 'kind' | 'content' | 'parentBlockId' | 'children' | 'isCollapsed'>
   date: string
-  previousBlockId?: string | null
+  previousBlock?: Pick<TreeBlock, 'id' | 'content'> | null
   onCreateBlock: CreateBlock
   onPatchBlock: PatchBlock
 }
@@ -123,11 +123,29 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
   }, [input, saveContent, setLocalContent])
 
   const deleteEmptyBlock = useCallback(() => {
-    const focusOptions = input.previousBlockId
-      ? { focusBlockId: input.previousBlockId }
+    const focusOptions = input.previousBlock
+      ? { focusBlockId: input.previousBlock.id }
       : { focusShellDate: input.date }
 
     input.onPatchBlock(input.block.id, { action: 'delete' }, focusOptions).catch(() => {})
+  }, [input])
+
+  const mergeIntoPreviousBlock = useCallback(async () => {
+    if (!input.previousBlock) return
+
+    const previousTextarea = document.querySelector<HTMLTextAreaElement>(
+      `[data-testid="block-input-${input.previousBlock.id}"]`,
+    )
+    const previousContent = previousTextarea?.value ?? input.previousBlock.content
+
+    await input.onPatchBlock(input.block.id, {
+      action: 'mergeIntoBlock',
+      targetBlockId: input.previousBlock.id,
+      targetContent: `${previousContent}${contentRef.current}`,
+    }, {
+      focusBlockId: input.previousBlock.id,
+      focusCursorOffset: previousContent.length,
+    })
   }, [input])
 
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -136,6 +154,15 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
       if (textarea.selectionStart === 0 && textarea.selectionEnd === 0) {
         event.preventDefault()
         deleteEmptyBlock()
+        return
+      }
+    }
+
+    if ((event.key === 'Backspace' || event.key === 'Delete') && input.previousBlock && contentRef.current.length > 0) {
+      const textarea = event.currentTarget
+      if (textarea.selectionStart === 0 && textarea.selectionEnd === 0) {
+        event.preventDefault()
+        mergeIntoPreviousBlock().catch(() => {})
         return
       }
     }
@@ -151,7 +178,7 @@ export function usePersistedBlockEditor(input: PersistedBlockEditorInput) {
       event.stopPropagation()
       saveThenPatch({ action: event.shiftKey ? 'outdent' : 'indent' }, { refocus: true })
     }
-  }, [createBlockFromEnter, deleteEmptyBlock, saveThenPatch])
+  }, [createBlockFromEnter, deleteEmptyBlock, input.previousBlock, mergeIntoPreviousBlock, saveThenPatch])
 
   const handleBlur = useCallback(() => {
     saveContent().catch(() => {})
