@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url)
 
 export const DIRECT_UPLOAD_LIMIT_BYTES = 500 * 1024 * 1024
 export const CHUNK_SIZE_BYTES = 8 * 1024 * 1024
-export const AUDIO_SEGMENT_SECONDS = 600
+export const AUDIO_SEGMENT_SECONDS = 300
 export const MAX_TRANSCRIBE_CONCURRENCY = 3
 export const TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe'
 
