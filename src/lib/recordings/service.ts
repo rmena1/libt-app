@@ -748,6 +748,7 @@ async function insertPlannedBlockForTx(tx: Tx, input: {
     userId: input.userId,
     parent: input.parent,
     content: input.plan.content,
+    isCollapsed: input.plan.isCollapsed ?? false,
   })
 
   for (const child of input.plan.children ?? []) {
@@ -765,6 +766,7 @@ async function insertBlockForTx(tx: Tx, input: {
   userId: string
   parent: Block
   content: string
+  isCollapsed?: boolean
 }) {
   await lockByKeyForTx(tx, `blocks-parent:${input.userId}:${input.parent.id}`)
 
@@ -784,7 +786,7 @@ async function insertBlockForTx(tx: Tx, input: {
     dailyBlockId: input.parent.dailyBlockId,
     position: nextPositionAfter(lastSibling?.position ?? null),
     content: input.content,
-    isCollapsed: false,
+    isCollapsed: input.isCollapsed ?? false,
     createdAt: now,
     updatedAt: now,
   }).returning()

@@ -23,7 +23,9 @@ describe('recording plans', () => {
     assert.equal(recordingSectionName('meeting'), 'meetings')
     assert.equal(plan.content, '09:30 - Ventas Q1')
     assert.equal(plan.children?.[0]?.content, 'summary')
+    assert.equal(plan.children?.[0]?.isCollapsed, undefined)
     assert.equal(plan.children?.[1]?.content, 'transcription')
+    assert.equal(plan.children?.[1]?.isCollapsed, true)
     assert.equal(plan.children?.[1]?.children?.[0]?.content, 'Hablamos de ventas y acuerdos.')
   })
 
@@ -42,6 +44,8 @@ describe('recording plans', () => {
 
     assert.equal(recordingSectionName('video'), 'videos')
     assert.equal(plan.content, '18:05 - Demo producto')
+    assert.equal(plan.children?.[1]?.content, 'transcription')
+    assert.equal(plan.children?.[1]?.isCollapsed, true)
     assert.deepEqual(plan.children?.[0]?.children?.map((child) => child.content), [
       'Una demo breve.',
       'La demo presenta el producto en orden.',

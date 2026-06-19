@@ -380,7 +380,7 @@ function applyPatchToBlock(block: TimelineBlock, body: object): TimelineBlock {
   }
 
   if (body.action === 'setCollapsed' && 'isCollapsed' in body && typeof body.isCollapsed === 'boolean') {
-    return { ...block, isCollapsed: body.isCollapsed, updatedAt: now }
+    return { ...block, isCollapsed: body.isCollapsed }
   }
 
   return block

@@ -99,9 +99,16 @@ test.describe('daily view and app shell', () => {
     await expect.poll(async () => (await textareaValues(section)).some((value) =>
       value.includes('Reunion e2e de prueba'),
     )).toBe(true)
-    await expect.poll(async () => (await textareaValues(section)).some((value) =>
-      value.includes('pipeline de transcripcion'),
-    )).toBe(true)
+
+    const transcriptionBlockId = await blockIdForTextareaValue(section, 'transcription')
+    const transcriptionRow = page.getByTestId(`block-${transcriptionBlockId}`).locator('xpath=..')
+    const transcriptionDescendants = transcriptionRow.locator('.block-children textarea')
+    await expect(page.getByTestId(`collapse-${transcriptionBlockId}`)).toHaveAttribute('aria-expanded', 'false')
+    await expect(transcriptionDescendants).toHaveCount(0)
+
+    await clickCollapse(page, transcriptionBlockId)
+    await expect(transcriptionDescendants).toHaveCount(1)
+    await expect(transcriptionDescendants.last()).toHaveValue(/pipeline de transcripcion/)
   })
 
   test('desktop virtual scroll and calendar navigation keep focused date in sync', async ({ page }, testInfo) => {
@@ -241,6 +248,41 @@ test.describe('daily view and app shell', () => {
     await expect(page.getByTestId(`block-input-${child.id}`)).toHaveValue(child.content)
   })
 
+  test('desktop block collapse persists and preserves descendant collapse state', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only collapse assertions')
+
+    const date = addDays(todayIso(), -4)
+    const parent = await createBlock(page, { date, content: `Parent ${Date.now()}` })
+    const child = await createBlock(page, { date, parentBlockId: parent.id, content: `Child ${Date.now()}` })
+    const grandchild = await createBlock(page, { date, parentBlockId: child.id, content: `Grandchild ${Date.now()}` })
+    const todoParent = await createBlock(page, { date, kind: 'todo', content: `Todo parent ${Date.now()}` })
+    const todoChild = await createBlock(page, { date, parentBlockId: todoParent.id, content: `Todo child ${Date.now()}` })
+
+    await page.reload()
+    await goToDate(page, date)
+
+    await expect(page.getByTestId(`collapse-${parent.id}`)).toBeVisible()
+    await expect(page.getByTestId(`collapse-${child.id}`)).toBeVisible()
+    await expect(page.getByTestId(`collapse-${grandchild.id}`)).toHaveCount(0)
+    await expect(page.getByTestId(`collapse-${todoParent.id}`)).toBeVisible()
+    await expect(page.getByTestId(`todo-toggle-${todoParent.id}`)).toBeVisible()
+    await expect(page.getByTestId(`collapse-${todoChild.id}`)).toHaveCount(0)
+
+    await clickCollapse(page, child.id)
+    await expect(page.getByTestId(`block-input-${grandchild.id}`)).toBeHidden()
+
+    await clickCollapse(page, parent.id)
+    await expect(page.getByTestId(`block-input-${child.id}`)).toBeHidden()
+
+    await page.reload()
+    await goToDate(page, date)
+    await expect(page.getByTestId(`block-input-${child.id}`)).toBeHidden()
+
+    await clickCollapse(page, parent.id)
+    await expect(page.getByTestId(`block-input-${child.id}`)).toHaveValue(child.content)
+    await expect(page.getByTestId(`block-input-${grandchild.id}`)).toBeHidden()
+  })
+
   test('mobile shell exposes bottom navigation, date timeline, and AI screen', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'Mobile Chrome', 'mobile-only shell assertions')
 
@@ -302,13 +344,14 @@ async function createBlock(page: Page, input: {
   date: string
   content: string
   parentBlockId?: string
+  kind?: 'text' | 'todo'
 }) {
   const response = await page.request.post('/api/blocks', {
     data: {
       date: input.date,
       content: input.content,
       parentBlockId: input.parentBlockId ?? null,
-      kind: 'text',
+      kind: input.kind ?? 'text',
     },
   })
   expect(response.ok()).toBeTruthy()
@@ -321,9 +364,27 @@ async function patchBlock(page: Page, blockId: string, body: object) {
   expect(response.ok()).toBeTruthy()
 }
 
+async function clickCollapse(page: Page, blockId: string) {
+  const responsePromise = page.waitForResponse((response) =>
+    response.url().includes(`/api/blocks/${blockId}`) && response.request().method() === 'PATCH',
+  )
+  await page.getByTestId(`collapse-${blockId}`).click()
+  expect((await responsePromise).ok()).toBeTruthy()
+}
+
 async function blockIdFromInput(input: ReturnType<Page['locator']>) {
   const testId = await input.getAttribute('data-testid')
   if (!testId) throw new Error('Missing block input test id')
+  return testId.replace('block-input-', '')
+}
+
+async function blockIdForTextareaValue(scope: Locator, value: string) {
+  const testId = await scope.locator('textarea').evaluateAll((nodes, expected) => {
+    const match = nodes.find((node) => (node as HTMLTextAreaElement).value === expected)
+    return match?.getAttribute('data-testid') ?? null
+  }, value)
+
+  if (!testId?.startsWith('block-input-')) throw new Error(`Missing textarea with value: ${value}`)
   return testId.replace('block-input-', '')
 }
 
