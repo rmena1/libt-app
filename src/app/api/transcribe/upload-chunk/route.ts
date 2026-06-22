@@ -98,7 +98,7 @@ function parseRecordingMode(value: FormDataEntryValue | null): RecordingMode {
 
 function parseDailyDate(value: FormDataEntryValue | null) {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
-  return new Date().toISOString().slice(0, 10)
+  throw new Error('Invalid dailyDate')
 }
 
 function parseOptionalString(value: FormDataEntryValue | null) {

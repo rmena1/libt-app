@@ -8,10 +8,7 @@ import { centeredDateWindow, todayIso } from '@/lib/daily/timeline'
 import { RecordingPanel } from '@/components/recording/recording-panel'
 import { formatMonth, monthCalendarDates, sameMonth, weekdayShort } from './view-model'
 
-export function DesktopSidebar(props: {
-  focusedDate: IsoDate
-  userEmail: string
-}) {
+export function DesktopSidebar({ userEmail }: { userEmail: string }) {
   const [isRecordingsOpen, setIsRecordingsOpen] = useState(false)
 
   return (
@@ -38,7 +35,7 @@ export function DesktopSidebar(props: {
         <Link href="/favorites">Favorites</Link>
         <Link href="/profile">Profile</Link>
       </nav>
-      <p>{props.userEmail}</p>
+      <p>{userEmail}</p>
       <LogoutButton />
       {isRecordingsOpen && (
         <div
@@ -61,7 +58,7 @@ export function DesktopSidebar(props: {
               </div>
               <button type="button" onClick={() => setIsRecordingsOpen(false)}>Cerrar</button>
             </div>
-            <RecordingPanel focusedDate={props.focusedDate} />
+            <RecordingPanel />
           </section>
         </div>
       )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
+import { todayIso } from '@/lib/daily/timeline'
 import { RECORDING_COMPLETED_EVENT, type RecordingCompletedDetail } from '@/lib/recordings/client-events'
 
 export type RecordingMode = 'mic' | 'meeting' | 'video'
@@ -440,8 +441,4 @@ async function pollJob(jobId: string, onProgress: (progress: number) => void) {
 
 function getMimeType() {
   return MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
-}
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10)
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { todayIso } from '@/lib/daily/timeline'
 import { RECORDING_COMPLETED_EVENT, type RecordingCompletedDetail } from '@/lib/recordings/client-events'
 import { useRecording, type RecordingMode } from './recording-context'
 
@@ -19,7 +20,7 @@ interface RecordingRow {
 
 const RETRY_POLL_TIMEOUT_MS = 20 * 60 * 1000
 
-export function RecordingPanel({ focusedDate }: { focusedDate: string }) {
+export function RecordingPanel() {
   const {
     isRecording,
     isTranscribing,
@@ -67,7 +68,7 @@ export function RecordingPanel({ focusedDate }: { focusedDate: string }) {
   }, [refreshRecordingsToken, isTranscribing])
 
   const start = (mode: RecordingMode) => {
-    startRecording(mode, focusedDate).catch((error) => {
+    startRecording(mode, todayIso()).catch((error) => {
       window.alert(error instanceof Error ? error.message : 'No se pudo iniciar la grabación')
     })
   }
@@ -136,7 +137,7 @@ export function RecordingPanel({ focusedDate }: { focusedDate: string }) {
             onChange={(event) => {
               const file = event.currentTarget.files?.[0]
               event.currentTarget.value = ''
-              if (file) uploadAudioFile(file, focusedDate).catch((error) => {
+              if (file) uploadAudioFile(file, todayIso()).catch((error) => {
                 window.alert(error instanceof Error ? error.message : 'No se pudo subir el audio')
               })
             }}

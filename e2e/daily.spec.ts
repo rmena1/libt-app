@@ -77,9 +77,11 @@ test.describe('daily view and app shell', () => {
     test.skip(testInfo.project.name !== 'Desktop Chrome', 'desktop-only recording panel')
 
     const today = todayIso()
+    const yesterday = addDays(today, -1)
     const section = page.locator(`[data-date="${today}"]`)
 
     await page.reload()
+    await goToDate(page, yesterday)
     await expect(page.getByTestId('recording-panel')).toHaveCount(0)
     await expect(page.getByTestId('open-recordings-button')).toBeVisible()
     await page.getByTestId('open-recordings-button').click()
